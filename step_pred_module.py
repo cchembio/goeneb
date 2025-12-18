@@ -86,7 +86,7 @@ class AMGD:
             angle_denom = gradnorm * prev_stepnorm
 
             # determine r value
-            if angle_denom == 0.0:
+            if np.abs(angle_denom) < 1e-8:
                 angle_rval = 0.5
 
             else:
@@ -221,7 +221,7 @@ class RationalFunction(BFGS):
         stepvec = eigenvecs[:, lowestev]
 
         # Do a Rational Function Step
-        if stepvec[-1] == 0.0:
+        if np.abs(stepvec[-1]) < 1e-8:
             scaledstepvec = stepvec[:-1]
             logger.warning('WARNING: Step should be devided by 0! No guarantee for the step size!')
         else:

@@ -163,7 +163,7 @@ class S_IDPP(IDPP):
         self.ideal_dmats = engrad_calc_kwargs['ideal_dmats']
         while self.images < self.n_images and self.iteration <= self.maxiter:
             self.iteration += 1
-            logger.debug(f"Iteration {self.iteration}")
+            logger.debug(f"\nIteration {self.iteration}")
 
             # calculate engrads (only select relevant dmats)
             engrad_calc_kwargs['ideal_dmats'] = np.vstack([self.ideal_dmats[:self.left_end], 
@@ -194,7 +194,7 @@ class S_IDPP(IDPP):
             # Add images
             path_pvecs = self.path.get_img_pvecs(include_ends=True)
             images_to_add = self.right_end - self.left_end - 1
-            logger.debug(f"Images to add still: {images_to_add}")
+            logger.debug(f"Images to still add: {images_to_add}")
             interpolated_ends = interpolate_linear(path_pvecs[self.left_end],
                                                  path_pvecs[self.left_end + 1],
                                                  images_to_add)
@@ -208,7 +208,7 @@ class S_IDPP(IDPP):
                 new_path = np.vstack([left_part, first_interp, right_part])
                 self.path.set_img_pvecs(new_path[1:-1])
                 self.right_end -= 1
-                print('Image added to the right.')
+                logger.debug('Image added to the right.')
 
             if self.conv_check_image(self.left_end) and self.images < self.n_images:
                 # add left image
@@ -219,7 +219,7 @@ class S_IDPP(IDPP):
                 new_path = np.vstack([left_part, first_interp, right_part])
                 self.path.set_img_pvecs(new_path[1:-1])
                 self.left_end += 1
-                print('Image added to the left.')
+                logger.debug('Image added to the left.')
         # The SIDPP did not add all images
         if self.images < self.n_images:
             images_to_add = self.n_images - self.images
@@ -233,6 +233,9 @@ class S_IDPP(IDPP):
             right_part = path_pvecs[self.left_end+1:]
             new_path = np.vstack([left_part, interpolated_path[1:-1], right_part])
             self.path.set_img_pvecs(new_path[1:-1])
+        # complete ideal_dmats and image_pair_ks before returning
+        engrad_calc_kwargs['ideal_dmats'] = self.ideal_dmats
+        self.path.set_img_pair_ks(np.zeros(self.n_images + 1) + self.k_const)
         return self.path, self.iteration
 
     def recalculate_img_pair_ks(self):
@@ -251,7 +254,7 @@ class S_IDPP(IDPP):
             new_k = 1
         new_ks = np.zeros(len(path_pvecs) - 1) + self.k_const
         new_ks[self.left_end] = new_k
-        print(new_ks)
+        logger.debug(f"The new spring constant is {new_k}")
         self.path.set_img_pair_ks(new_ks)
 
     def conv_check_image(self, img_index):
@@ -259,7 +262,7 @@ class S_IDPP(IDPP):
 
         rmsf_image = cm.NEB_RMSF(IDPP_neb_grads[img_index-1])
         absf_image = cm.NEB_ABSF(IDPP_neb_grads[img_index-1])
-        print(f"Image {img_index}: RMSF: {rmsf_image}, AbsF: {absf_image}")
+        logger.debug(f"Image {img_index}: RMSF: {rmsf_image}, AbsF: {absf_image}")
 
         if rmsf_image > self.RMSF_thresh:
             return False
@@ -270,8 +273,6 @@ class S_IDPP(IDPP):
     def calc_tanvecs(self):
         all_img_pvecs = self.path.get_img_pvecs(include_ends=True)
         energies = self.path.get_energies(include_ends=True)
-        print(np.array(all_img_pvecs).shape)
-        print(np.array(energies).shape)
         return tgm.henkjon_tans(all_img_pvecs, energies)
 
 
@@ -370,7 +371,7 @@ def do_SIDPP_opt_pass(start_pvec,
 
     # calculate 'ideal' distance matrices
     start_dmat = calculate_distmat(start_pvec)
-    stop_dmat = calculate_distmat(start_pvec)
+    stop_dmat = calculate_distmat(end_pvec)
 
     # we want len(path_pvecs)-2 interpolations, because path_pvecs contains the ends,
     # which arent counted in interpolate_linear

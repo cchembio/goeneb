@@ -8,7 +8,7 @@ The GöNEB code uses the framework of the [Nudged Elastic Band](https://theory.c
 1. **Clone the repository**
 
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/cchembio/goeneb.git
    cd goeneb
    ```
 
@@ -254,7 +254,7 @@ The other arguments that can be parsed by the program are:
 
 # Contact
 
-This code is currently maintained by Lynn Meeder (lynn.meeder@uni-goettingen.de).<br>
+This code is currently maintained and developed by Lynn Meeder (lynn.meeder@uni-goettingen.de).<br>
 The base code was written by Björn Hein-Janke (bjoern.hein-janke@uni-goettingen.de).
 
 # References

@@ -80,29 +80,28 @@ def convert_entry(entry):
     is a special kind of type (e.g. None, bool, int,...)
     and convert them if they are.
     """
-    if entry == 'None':
+    if entry.lower() == 'none':
         return None
-    elif entry == 'True':
+    elif entry.lower() == 'true':
         return True
-    elif entry == 'False':
+    elif entry.lower() == 'false':
         return False
     else:
-        if '.' not in entry:
-            # see if it might be an int
-            try:
-                result = int(entry)
-            except:
-                pass
-            else:
-                return result
-        # otherwise, see if it might be a float
+        # check for integer
         try:
-            result = float(entry)
-        except:
+            parsed_entry = int(entry)
+        except ValueError:
             pass
         else:
-            return result
-        # apparently, it really is a string, return as-is
+            return parsed_entry
+        # check for float
+        try:
+            parsed_entry = float(entry)
+        except ValueError:
+            pass
+        else:
+            return parsed_entry
+        # it is a string
         return entry
 
 

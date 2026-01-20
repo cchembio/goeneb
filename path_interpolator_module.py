@@ -58,13 +58,27 @@ def do_interpolation(start_pvec,
                                                 interpolations,
                                                 use_2nd_constr_table=True)
 
-        # compare total atom movement to find better path
-        tam1 = cci.total_atom_movement(interp1)
-        tam2 = cci.total_atom_movement(interp2)
-        if tam1 <= tam2:
+        # check if the z-matrix interpolation worked
+        if interp1 is not None and interp2 is not None:
+            # compare total atom movement to find better path
+            tam1 = cci.total_atom_movement(interp1)
+            tam2 = cci.total_atom_movement(interp2)
+            if tam1 <= tam2:
+                interp_path = interp1
+            else:
+                interp_path = interp2
+
+        elif interp1 is not None and interp2 is None:
             interp_path = interp1
-        else:
+            logger.warning("The z-matrix construction only worked with the start structure. This construction table is used for the interpolation.")
+
+        elif interp2 is not None and interp1 is None:
             interp_path = interp2
+            logger.warning("The z-matrix construction only worked with the end structure. This construction table is used for the interpolation.")
+
+        else:
+            logger.error("Both structures could not be transformed to z-matrix coordinates. Try again with cartesian or geodesic.")
+            raise NEBError('')
 
     elif mode == 'geodesic':
         level = logger.level

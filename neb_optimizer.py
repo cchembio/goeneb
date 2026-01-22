@@ -28,9 +28,9 @@ Hartree_in_kJmol = 2625.49963948
 # --------------------------------------------------------------------
 
 class NEB_Optimizer(BasicNEB):
-    def __init__(self, NEBPath:NEBPath, conf_dict, log=True):
+    def __init__(self, NEBPath:NEBPath, settings, log=True):
         # Parent class
-        super().__init__(NEBPath, conf_dict)
+        super().__init__(NEBPath, settings)
 
         # Begin with relaxed NEB
         self.relaxed = True
@@ -69,11 +69,11 @@ class NEB_Optimizer(BasicNEB):
             self.hessians = [hm.hessian(mode=self.initial_hessian, start = self.BFGS_start, labels=self.labels) for _ in range(self.images)]
         else:
             raise nex.NEBError('Error in with step prediction method. %s is not a valid step predictor mode.',
-                               str(conf_dict['step_pred_method']))
+                               str(settings.step_pred_method))
 
         # Logging
         if log:
-            self.logger = lgm.NEBLogger(conf_dict['logfile_path'])
+            self.logger = lgm.NEBLogger(settings.logfile_path)
         else:
             self.logger = None
 
@@ -87,7 +87,7 @@ class NEB_Optimizer(BasicNEB):
             self.recalculate_varks()
 
         else:
-            # if not, set all ks to be the value set in the conf_dict
+            # if not, set all ks to be the value set in the settings
             self.path.set_img_k_const(self.k_const)
 
         # calculate regular springforce gradients. even if analytical positions scheme is active,
@@ -573,7 +573,7 @@ class SCT_Optimizer(BasicNEB):
             self.recalculate_varks()
 
         else:
-            # if not, set all ks to be the value set in the conf_dict, to make sure
+            # if not, set all ks to be the value set in the settings, to make sure
             self.path.set_img_k_const(self.k_const)
 
         # calculate regular springforce gradients.

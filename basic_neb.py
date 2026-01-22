@@ -3,7 +3,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 class BasicNEB:
-    def __init__(self, NEBPath, dict={}):
+    def __init__(self, NEBPath, settings=None):
         self.path = NEBPath
         self.iteration = 0
         self.state = 'FAILED'
@@ -12,10 +12,9 @@ class BasicNEB:
         self.climbing_image = False
         self.maxiter = 50
 
-        # save all information from config
-        self.dict = dict
-        for key, value in dict.items():
-            setattr(self, key, value)
+        # save all information from settings
+        if settings is not None:
+            self.__dict__.update(settings.__dict__)
 
     @property
     def images(self):

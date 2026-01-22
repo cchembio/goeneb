@@ -317,7 +317,7 @@ class self_consistent_tangents:
         # Setup AMGD
         self.AMGD_objects = [AMGD(stepsize_fac, max_gamma) for _ in range(images)]
 
-    def predict(self, nebgradvecs, hessians, energies, conf_dict={}, path=None):
+    def predict(self, nebgradvecs, hessians, energies, settings=None, path=None):
         self.do_AMGD = False
         if None in energies:
             self.do_AMGD = True
@@ -339,7 +339,7 @@ class self_consistent_tangents:
         else:
             # do harmonic NEB, but only if the optimization didn't fail
             # With real energy gradient
-            SCT_steps, ret_state = sct.do_harmonic_opt(path, conf_dict, hessians)
+            SCT_steps, ret_state = sct.do_harmonic_opt(path, settings, hessians)
             if ret_state == 'FAILED':
                 logger.warning('Doing AMGD, since the SCT did not converge')
                 return AMGD_steps

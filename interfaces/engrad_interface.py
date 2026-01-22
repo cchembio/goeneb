@@ -16,14 +16,14 @@ from . import dummy_interface as dmm
 
 logger = logging.getLogger(__name__)
 
-def gather_engrfunc(atomic_labels, conf_dict, temp_workdir):
+def gather_engrfunc(atomic_labels, settings, temp_workdir):
     """Set up the appropriate energy function from the selected 
     interface (orca, gaussian, molpro or dummy interface).\\
     Returns:
     - energy function
     - energy keywords to be used with the function
     """
-    interface = conf_dict['interface']
+    interface = settings.interface
 
 
     if interface is None:
@@ -34,21 +34,21 @@ def gather_engrfunc(atomic_labels, conf_dict, temp_workdir):
 
     elif interface == 'orca':
         engrfunc, engrfunc_kwargs = setup_orca(atomic_labels,
-                                               conf_dict,
+                                               settings,
                                                temp_workdir)
 
     elif interface == 'gaussian':
         engrfunc, engrfunc_kwargs = setup_gaussian(atomic_labels,
-                                                   conf_dict,
+                                                   settings,
                                                    temp_workdir)
 
     elif interface == 'molpro':
         engrfunc, engrfunc_kwargs = setup_molpro(atomic_labels,
-                                                 conf_dict,
+                                                 settings,
                                                  temp_workdir)
 
     elif interface == 'dummy':
-        number_of_images = conf_dict['n_images'] + 2
+        number_of_images = settings.n_images + 2
         engrfunc, engrfunc_kwargs = setup_dummy(number_of_images)
 
     else:
@@ -59,7 +59,7 @@ def gather_engrfunc(atomic_labels, conf_dict, temp_workdir):
 
 
 # helper functions for setting up ORCA interface
-def setup_orca(atomic_labels, conf_dict, temp_workdir):
+def setup_orca(atomic_labels, settings, temp_workdir):
     """Set up the orca energy and gradient calculation function with the specified user input.\\
     Returns: 
     - energy function
@@ -70,7 +70,7 @@ def setup_orca(atomic_labels, conf_dict, temp_workdir):
     logger.info('Temporary files stored at: \n' + str(temp_workdir))
 
     engrfunc = orc.orca_path_engrads
-    orca_keywords = conf_dict['orca_keywords']
+    orca_keywords = settings.orca_keywords
 
     if orca_keywords is None:
         raise nex.NEBError('Error: ORCA interface selected, but no ' +\
@@ -78,30 +78,30 @@ def setup_orca(atomic_labels, conf_dict, temp_workdir):
                            'sure to specify them in the .ini file under ' +\
                            'the "orca_keywords" keyword.')
 
-    if conf_dict['orca_keywords2'] is None:
+    if settings.orca_keywords2 is None:
         ml2 = None
     else:
-        ml2 = codecs.decode(conf_dict['orca_keywords2'], 'unicode_escape') 
+        ml2 = codecs.decode(settings.orca_keywords2, 'unicode_escape') 
 
     engrfunc_kwargs = {'labels' : atomic_labels,
-                       'npal' : conf_dict['n_threads'],
+                       'npal' : settings.n_threads,
                        'workingdir' : temp_workdir,
-                       'orca' : find_orcapath(conf_dict),
+                       'orca' : find_orcapath(settings),
                        'method_keywords' : orca_keywords,
-                       'charge' : conf_dict['charge'],
-                       'spin' : conf_dict['spin'],
+                       'charge' : settings.charge,
+                       'spin' : settings.spin,
                        'series_name' : 'image',
                        'method_line2' : ml2}
 
     return engrfunc, engrfunc_kwargs
 
 
-def find_orcapath(conf_dict):
+def find_orcapath(settings):
     """Get the ORCA Path. Either from the ini file or from the environment variable ORCA_EXE."""
     logger = logging.getLogger(__name__)
-    if conf_dict['orca_path'] is not None:
+    if settings.orca_path is not None:
         logger.info('Using orca path from .ini file.')
-        orcapath = conf_dict['orca_path']
+        orcapath = settings.orca_path
 
     else:
         orcapath = os.getenv('ORCA_EXE')
@@ -116,7 +116,7 @@ def find_orcapath(conf_dict):
 
 
 # helper functions for setting up the Gaussian interface
-def setup_gaussian(atomic_labels, conf_dict, temp_workdir):
+def setup_gaussian(atomic_labels, settings, temp_workdir):
     """Set up the gaussian energy and gradient calculation function with the specified user input.\\
     Returns: 
     - energy function
@@ -125,10 +125,10 @@ def setup_gaussian(atomic_labels, conf_dict, temp_workdir):
     logger = logging.getLogger(__name__)
     logger.info('Gaussian interface for EnGrad calculation selected.')
     logger.info('Temporary files stored at: \n' + str(temp_workdir))
-    logger.info('Memory allocated: ' + str(conf_dict['memory']))
+    logger.info('Memory allocated: ' + str(settings.memory))
 
     engrfunc = gss.gaussian_path_engrads
-    gauss_keywords = conf_dict['gaussian_keywords']
+    gauss_keywords = settings.gaussian_keywords
 
     if gauss_keywords is None:
         raise nex.NEBError('Error: gaussian interface selected, but no ' +\
@@ -139,23 +139,23 @@ def setup_gaussian(atomic_labels, conf_dict, temp_workdir):
     engrfunc_kwargs = {'labels' : atomic_labels,
                        'workingdir' : temp_workdir,
                        'series_name' : 'image',
-                       'gaussian' : find_gausspath(conf_dict),
+                       'gaussian' : find_gausspath(settings),
                        'method_keywords' : gauss_keywords,
-                       'charge' : conf_dict['charge'],
-                       'spin' : conf_dict['spin'],
-                       'nprocs' : conf_dict['n_threads'],
-                       'mem' : conf_dict['memory'],
+                       'charge' : settings.charge,
+                       'spin' : settings.spin,
+                       'nprocs' : settings.n_threads,
+                       'mem' : settings.memory,
                        'title' : 'Title Card Required'}
 
     return engrfunc, engrfunc_kwargs
 
 
-def find_gausspath(conf_dict):
+def find_gausspath(settings):
     """Get the gaussian Path. Either from the ini file or from the environment variable GAUSS_EXE."""
     logger = logging.getLogger(__name__)
-    if conf_dict['gaussian_path'] is not None:
+    if settings.gaussian_path is not None:
         logger.info('Using gaussian path from .ini file.')
-        gaussianpath = conf_dict['gaussian_path']
+        gaussianpath = settings.gaussian_path
 
     else:
         gaussianpath = os.getenv('GAUSS_EXE')
@@ -171,7 +171,7 @@ def find_gausspath(conf_dict):
 
 # helper functions for setting up MolPro interface 
 
-def setup_molpro(atomic_labels, conf_dict, temp_workdir):
+def setup_molpro(atomic_labels, settings, temp_workdir):
     """Set up the Molpro energy and gradient calculation function with the specified user input.\\
     Returns: 
     - energy function
@@ -183,10 +183,10 @@ def setup_molpro(atomic_labels, conf_dict, temp_workdir):
 
     logger.info('Molpro interface for EnGrad calculation selected.')
     logger.info('Temporary files stored at: \n' + str(temp_workdir))
-    logger.info('Memory allocated: ' + str(conf_dict['memory']))
+    logger.info('Memory allocated: ' + str(settings.memory))
 
     engrfunc = mol.molpro_path_engrads
-    molpro_keywords = conf_dict['molpro_keywords']
+    molpro_keywords = settings.molpro_keywords
 
     if molpro_keywords is None:
         raise nex.NEBError('Error: molpro interface selected, but no ' +\
@@ -197,23 +197,23 @@ def setup_molpro(atomic_labels, conf_dict, temp_workdir):
     engrfunc_kwargs = {'labels' : atomic_labels,
                        'workingdir' : temp_workdir,
                        'series_name' : 'image',
-                       'molpro' : find_molpro_path(conf_dict),
+                       'molpro' : find_molpro_path(settings),
                        'method_keywords' : molpro_keywords,
-                       'charge' : conf_dict['charge'],
-                       'spin' : conf_dict['spin'],
-                       'nprocs' : conf_dict['n_threads'],
-                       'mem' : conf_dict['memory']}
+                       'charge' : settings.charge,
+                       'spin' : settings.spin,
+                       'nprocs' : settings.n_threads,
+                       'mem' : settings.memory}
                        #'errordir' : find_workdir()}
 
     return engrfunc, engrfunc_kwargs
 
 
-def find_molpro_path(conf_dict):
+def find_molpro_path(settings):
     """Get the Molpro Path. Either from the ini file or from the environment variable MOL_EXE."""
     logger = logging.getLogger(__name__)
-    if conf_dict['molpro_path'] is not None:
+    if settings.molpro_path is not None:
         logger.info('Using molpro path from .ini file.')
-        molpath = Path(conf_dict['molpro_path'])
+        molpath = Path(settings.molpro_path)
 
     else:
         molpath = os.getenv('MOL_EXE')

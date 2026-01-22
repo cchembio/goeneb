@@ -8,7 +8,7 @@ import neb_optimizer as nopt
 logger = logging.getLogger(__name__)
 
 def do_harmonic_opt(NEBPath:NEBPath,
-                    conf_dict,
+                    settings,
                     hessians):
     """
     Do the NEB optimization on the harmonic approximation in the SCT method. 
@@ -16,7 +16,7 @@ def do_harmonic_opt(NEBPath:NEBPath,
     """
     # gather information for NEBPath object
     new_Path = copy.deepcopy(NEBPath)
-    optimizer = nopt.SCT_Optimizer(new_Path, conf_dict)
+    optimizer = nopt.SCT_Optimizer(new_Path, settings)
 
     img_pvecs = new_Path.get_img_pvecs(include_ends=False)
     gradvecs = new_Path.get_engrads()

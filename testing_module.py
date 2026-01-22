@@ -13,6 +13,7 @@ from path_interpolator_module import do_interpolation
 from IDPP_module import do_IDPP_opt_pass
 from neb_path import NEBPath
 from neb_optimizer import NEB_Optimizer
+from neb_configparse import Settings
 
 np.set_printoptions(precision=12)
 
@@ -99,33 +100,28 @@ def test_step_prediction(labels, start_pvec, end_pvec, tempdir):
         path = [start_pvec, cart_interp, end_pvec]
         logpath = tempdir / 'test.csv'
         thistime = time.time()
-        conf_dict = {'interface' : 'dummy',
-                     'n_images' : 1,
-                    'k_const' : 1,
-                    'Relaxed_Max_RMSF_tol' : 0,
-                    'Relaxed_Max_AbsF_tol' : 0,
-                    'step_pred_method' : 'SD',
-                    'stepsize_fac' : 0.2,
-                    'tangents' : 'henkjon',
-                    'use_vark' : False,
-                    'spring_gradient' : 'difference',
-                    'remove_gradtrans' : True,
-                    'remove_gradrot' : False,
-                    'frozen_atom_indices' : None,
-                    'maxiter' : 1,
-                    'logfile_path' : logpath,
-                    'use_analytical_springpos' : False,
-                    'max_step' : 5,
-                    'workdir' : tempdir,
-                    'interp_mode' : 'cartesian',
-                    'start_time' : thistime,
-                    'relaxed_neb' : True,
-                    'failed_img_tol_percent' : 0}
+
+        # Build settings
+        settings = Settings()
+        settings.interface = 'dummy'
+        settings.n_images = 1
+        settings.k_const = 1
+        settings.Relaxed_Max_RMSF_tol = 0
+        settings.Relaxed_Max_AbsF_tol = 0
+        settings.step_pred_method = 'SD'
+        settings.maxiter = 1
+        settings.logfile_path = logpath
+        settings.max_step = 5
+        settings.workdir = tempdir
+        settings.interp_mode = 'cartesian'
+        settings.start_time
+        settings.relaxed_neb
+        settings.failed_img_tol_percent
 
         logger.info('-----  SD             -----')
-        engrfunc, engrfunc_kwargs = gather_engrfunc(labels, conf_dict, None)
-        path_obj = NEBPath(labels, path, engrfunc, engrfunc_kwargs, conf_dict)
-        optimizer = NEB_Optimizer(path_obj, conf_dict)
+        engrfunc, engrfunc_kwargs = gather_engrfunc(labels, settings, None)
+        path_obj = NEBPath(labels, path, engrfunc, engrfunc_kwargs, settings)
+        optimizer = NEB_Optimizer(path_obj, settings)
         nebpath, return_state, iterations = optimizer.do_opt_loop(engrfunc, engrfunc_kwargs)
         logger.debug(list(nebpath.get_img_pvecs()[0]))
         rmsd, close = check_vector(nebpath.get_img_pvecs()[0], dummy_sd)
@@ -133,12 +129,13 @@ def test_step_prediction(labels, start_pvec, end_pvec, tempdir):
         logger.info('')
 
         logger.info('-----  AMGD           -----')
-        conf_dict['step_pred_method'] = 'AMGD'
-        conf_dict['AMGD_max_gamma'] = 0.9
-        conf_dict['maxiter'] = 2
-        engrfunc, engrfunc_kwargs = gather_engrfunc(labels, conf_dict, None)
-        path_obj = NEBPath(labels, path, engrfunc, engrfunc_kwargs, conf_dict)
-        optimizer = NEB_Optimizer(path_obj, conf_dict)
+        # adjust settings
+        settings.step_pred_method = 'AMGD'
+        settings.maxiter = 2
+
+        engrfunc, engrfunc_kwargs = gather_engrfunc(labels, settings, None)
+        path_obj = NEBPath(labels, path, engrfunc, engrfunc_kwargs, settings)
+        optimizer = NEB_Optimizer(path_obj, settings)
         nebpath, return_state, iterations = optimizer.do_opt_loop(engrfunc, engrfunc_kwargs)
         logger.debug(list(nebpath.get_img_pvecs()[0]))
         rmsd, close = check_vector(nebpath.get_img_pvecs()[0], dummy_amgd)
@@ -146,15 +143,15 @@ def test_step_prediction(labels, start_pvec, end_pvec, tempdir):
         logger.info('')
 
         logger.info('-----  RFO            -----')
-        conf_dict['step_pred_method'] = 'RFO'
-        conf_dict['AMGD_max_gamma'] = 0.9
-        conf_dict['maxiter'] = 3
-        conf_dict['BFGS_start'] = 2
-        conf_dict['NR_start'] = 3
-        conf_dict['initial_hessian'] = 'diagonal'
-        engrfunc, engrfunc_kwargs = gather_engrfunc(labels, conf_dict, None)
-        path_obj = NEBPath(labels, path, engrfunc, engrfunc_kwargs, conf_dict)
-        optimizer = NEB_Optimizer(path_obj, conf_dict)
+        # adjust settings
+        settings.step_pred_method = 'RFO'
+        settings.maxiter = 3
+        settings.BFGS_start = 2
+        settings.NR_start = 3
+
+        engrfunc, engrfunc_kwargs = gather_engrfunc(labels, settings, None)
+        path_obj = NEBPath(labels, path, engrfunc, engrfunc_kwargs, settings)
+        optimizer = NEB_Optimizer(path_obj, settings)
         nebpath, return_state, iterations = optimizer.do_opt_loop(engrfunc, engrfunc_kwargs)
         logger.debug(list(nebpath.get_img_pvecs()[0]))
         rmsd, close = check_vector(nebpath.get_img_pvecs()[0], dummy_rfo)
@@ -162,14 +159,12 @@ def test_step_prediction(labels, start_pvec, end_pvec, tempdir):
         logger.info('')
 
         logger.info('-----  SCT            -----')
-        conf_dict['step_pred_method'] = 'SCT'
-        conf_dict['harmonic_stepsize_fac'] = 0.01
-        conf_dict['harmonic_conv_fac'] = 0.7
-        conf_dict['Max_RMSF_tol'] = 0.000945
-        conf_dict['Max_AbsF_tol'] = 0.00189
-        engrfunc, engrfunc_kwargs = gather_engrfunc(labels, conf_dict, None)
-        path_obj = NEBPath(labels, path, engrfunc, engrfunc_kwargs, conf_dict)
-        optimizer = NEB_Optimizer(path_obj, conf_dict)
+        # adjust settings
+        settings.step_pred_method = 'SCT'
+
+        engrfunc, engrfunc_kwargs = gather_engrfunc(labels, settings, None)
+        path_obj = NEBPath(labels, path, engrfunc, engrfunc_kwargs, settings)
+        optimizer = NEB_Optimizer(path_obj, settings)
         nebpath, return_state, iterations = optimizer.do_opt_loop(engrfunc, engrfunc_kwargs)
         logger.debug(list(nebpath.get_img_pvecs()[0]))
         rmsd, close = check_vector(nebpath.get_img_pvecs()[0], dummy_sct)
@@ -250,20 +245,18 @@ def test_nebgrad(labels, start_pvec, end_pvec):
     logger = logging.getLogger(__name__)
     try:
         path = [start_pvec, cart_interp, end_pvec]
-        conf_dict = {'interface' : 'dummy',
-                    'k_const' : 1,
-                    'Relaxed_Max_RMSF_tol' : 10,
-                    'Relaxed_Max_AbsF_tol' : 10,
-                    'step_pred_method' : 'SD',
-                    'stepsize_fac' : 0.1,
-                    'tangents' : 'henkjon',
-                    'use_vark' : False,
-                    'spring_gradient' : 'difference',
-                    'remove_gradtrans' : True,
-                    'remove_gradrot' : False,
-                    'frozen_atom_indices' : None,
-                    'n_images' : 1}
-        engrfunc, engrfunc_kwargs = gather_engrfunc(labels, conf_dict, None)
+
+        # Build settings
+        settings = Settings()
+        settings.interface = 'dummy'
+        settings.k_const = 1
+        settings.Relaxed_Max_RMSF_tol = 10
+        settings.Relaxed_Max_AbsF_tol = 10
+        settings.step_pred_method = 'SD'
+        settings.stepsize_fac = 0.1
+        settings.n_images = 1
+
+        engrfunc, engrfunc_kwargs = gather_engrfunc(labels, settings, None)
         es, grads = engrfunc(path, **engrfunc_kwargs)
         error, check1 = check_value(es[1], dummy_img_energy)
         rmsd, check2 = check_vector(grads[1], dummy_image_grad)
@@ -274,10 +267,10 @@ def test_nebgrad(labels, start_pvec, end_pvec):
         logger.info(f'Dummy Energy:                    Error: {error:+8.4e}   |   {bool2msg(check1)}')
         logger.info(f'Dummy gradient:                  RMSD:  {rmsd:+8.4e}   |   {bool2msg(check2)}')
 
-        path_obj = NEBPath(labels, path, engrfunc, engrfunc_kwargs, conf_dict)
+        path_obj = NEBPath(labels, path, engrfunc, engrfunc_kwargs, settings)
         path_obj.set_energies([es[1]])
         path_obj.set_engrads([grads[1]])
-        optimizer = NEB_Optimizer(path_obj, conf_dict, log=False)
+        optimizer = NEB_Optimizer(path_obj, settings, log=False)
         tanvecs = optimizer.calc_tanvecs()
         optimizer.path.set_tanvecs(tanvecs)
 
@@ -314,16 +307,14 @@ def test_orca(atomic_labels, pvec, temp_workdir):
     logger.info('-----  ORCA           -----')
     try:
         nodes = os.environ['SLURM_NTASKS_PER_NODE']
-        conf_dict = {'interface' : 'orca',
-                    'orca_keywords' : 'HF-3c',
-                    'orca_keywords2' : None,
-                    'orca_path' : None,
-                    'n_threads' : nodes,
-                    'charge' : 0,
-                    'spin' : 1}
+        settings = Settings()
+        settings.interface = 'orca'
+        settings.orca_keywords = 'HF-3c'
+        settings.n_threads = nodes
+
         if os.getenv('ORCA_EXE') is not None:
             engrfunc, engrfunc_kwargs = gather_engrfunc(atomic_labels, 
-                                                        conf_dict, 
+                                                        settings, 
                                                         temp_workdir)
             energy, engrad = engrfunc([pvec], **engrfunc_kwargs)
             logger.debug(energy)
@@ -347,16 +338,15 @@ def test_molpro(atomic_labels, pvec, temp_workdir):
     logger.info('-----  MOLPRO         -----')
     try:
         nodes = os.environ['SLURM_NTASKS_PER_NODE']
-        conf_dict = {'interface' : 'molpro',
-                    'molpro_keywords' : 'hf basis=3-21G',
-                    'memory' : 29000,
-                    'molpro_path' : None,
-                    'n_threads' : nodes,
-                    'charge' : 0,
-                    'spin' : 1}
+        settings = Settings()
+        settings.interface = 'molpro'
+        settings.molpro_keywords = 'hf basis=3-21G'
+        settings.memory = 29000
+        settings.n_threads = nodes
+
         if os.getenv('MOL_EXE') is not None:
             engrfunc, engrfunc_kwargs = gather_engrfunc(atomic_labels, 
-                                                        conf_dict, 
+                                                        settings, 
                                                         temp_workdir)
             energy, engrad = engrfunc([pvec], **engrfunc_kwargs)
             logger.debug(energy)
@@ -381,16 +371,15 @@ def test_gaussian(atomic_labels, pvec, temp_workdir):
     logger.info('-----  GAUSSIAN       -----')
     try:
         nodes = os.environ['SLURM_NTASKS_PER_NODE']
-        conf_dict = {'interface' : 'gaussian',
-                    'gaussian_keywords' : 'HF/3-21G',
-                    'gaussian_path' : None,
-                    'memory' : 10000,
-                    'n_threads' : nodes,
-                    'charge' : 0,
-                    'spin' : 1}
+        settings = Settings()
+        settings.interface = 'gaussian'
+        settings.gaussian_keywords = 'HF/3-21G'
+        settings.memory = 10000
+        settings.n_threads = nodes
+
         if os.getenv('GAUSS_EXE') is not None:
             engrfunc, engrfunc_kwargs = gather_engrfunc(atomic_labels, 
-                                                        conf_dict, 
+                                                        settings, 
                                                         temp_workdir)
             energy, engrad = engrfunc([pvec], **engrfunc_kwargs)
             logger.debug(energy)

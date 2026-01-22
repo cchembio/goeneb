@@ -36,38 +36,38 @@ def main(args):
         inpfile_path = get_full_path(Path(args.input_file))
 
         # read the input file, overwrite if options are given in commandline
-        conf_dict = process_input_path(inpfile_path)
+        settings = process_input_path(inpfile_path)
         if args.verbose is not None:
-            conf_dict['verbose'] = args.verbose
+            settings.verbose = args.verbose
         if args.maxiter is not None:
-            conf_dict['maxiter'] = args.maxiter
+            settings.maxiter = args.maxiter
         if args.images is not None:
-            conf_dict['n_images'] = args.images
+            settings.n_images = args.images
         if args.trajtest:
-            conf_dict['trajtest'] = True
+            settings.trajtest = True
 
         # Adjust logging level
-        level, message = lgm.translate_level(conf_dict['verbose'])
+        level, message = lgm.translate_level(settings.verbose)
         logger.info(message)
         logger.setLevel(level)
 
-        logger.debug('Chosen settings:\n %s', pprint.pformat(conf_dict, indent=2))
+        logger.debug('Chosen settings:\n %s', pprint.pformat(settings, indent=2))
 
         # find/generate workdir, where the results should be stored
         workdir = find_workdir(inpfile_path)
 
         # find/generate tempdir, where temporary files should be stored
-        tempdir = find_tempdir(conf_dict)
+        tempdir = find_tempdir(settings)
 
         # find/generate the starting path
-        labels, starting_path = produce_starting_path(conf_dict)
+        labels, starting_path = produce_starting_path(settings)
 
         # save the starting path into the workdir
         io.write_xyz_traj(labels, starting_path, workdir / 'starttraj.xyz')
 
         # if trajtest is selected, only the starting path should be printed.
         # in that case, we're already done.
-        if conf_dict['trajtest'] is True:
+        if settings.trajtest is True:
             io.safe_delete_dir(tempdir)
             return
 
@@ -75,12 +75,12 @@ def main(args):
         # ------------------------------
         # first, set up our energy and gradient calculation function
         engrfunc, engrfunc_kwargs = gather_engrfunc(labels,
-                                                    conf_dict,
+                                                    settings,
                                                     tempdir)
 
         # prepare the logger for the progress of the (NEB) optimization
         logfile_path = workdir / 'optlog.csv'
-        conf_dict['logfile_path'] = logfile_path
+        settings.logfile_path = logfile_path
 
         # now we can generate the NEBPath object, which will hold the
         # relevant data for the neb path, like structures, labels,
@@ -89,17 +89,17 @@ def main(args):
                                starting_path,
                                engrfunc,
                                engrfunc_kwargs,
-                               conf_dict)
+                               settings)
 
         # do the actual NEB optimization
         # ------------------------------
-        conf_dict['start_time'] = time.time()
-        conf_dict['workdir'] = workdir 
+        settings.start_time = time.time()
+        settings.workdir = workdir 
 
-        optimizer = NEB_Optimizer(nebpath, conf_dict)
+        optimizer = NEB_Optimizer(nebpath, settings)
         nebpath, return_state, iterations = optimizer.do_opt_loop(engrfunc, engrfunc_kwargs)
 
-        if (conf_dict['relaxed_neb'] or iterations >= conf_dict['maxiter']):
+        if (settings.relaxed_neb or iterations >= settings.maxiter):
             # if relaxed NEB is active, or the iteration budget is
             # used up, we're already done now.  
             if return_state == 'SUCCESS':
@@ -122,9 +122,9 @@ def main(args):
         # if the user selected climbing image, we now need to
         # do the rest of the optimization with CI active.
         logger.info('Initial stage of NEB optimization complete after %d iterations.', iterations)
-        if conf_dict['climbing_image']:
+        if settings.climbing_image:
             logger.info('Activating climbing image.\n')
-        elif iterations < conf_dict['maxiter']:
+        elif iterations < settings.maxiter:
             logger.info('Continueing with main optimization stage.\n')
 
         nebpath, return_state, iterations = optimizer.do_opt_loop(engrfunc, engrfunc_kwargs)
@@ -212,44 +212,44 @@ def do_end_of_opt_printout(optimizer, workdir):
 # --------------------------------------------------------------------------
 
 
-def produce_starting_path(conf_dict):
+def produce_starting_path(settings):
     """Produces a starting path either by reading and optimizing a given one or by
     interpolating in the user specified manner (cartesian, internal or geodesic).
     Includes the TS_guess structure if given.
     """
-    if conf_dict['starttraj'] is not None:
+    if settings.starttraj is not None:
         # a starting trajectory was given, just gather that one
-        labels, starting_path = gather_starting_path(conf_dict)
+        labels, starting_path = gather_starting_path(settings)
 
         # apply structure alignment
-        starting_path = sam.align_path(starting_path, conf_dict['rot_align_mode'])
+        starting_path = sam.align_path(starting_path, settings.rot_align_mode)
         
         # apply IDPP if selected
-        if conf_dict['IDPP']:
+        if settings.IDPP:
             starting_path = idpp.do_IDPP_opt_pass(starting_path,
-                                                  conf_dict['IDPP_maxiter'],
-                                                  conf_dict['IDPP_max_RMSF'],
-                                                  conf_dict['IDPP_max_AbsF'],
-                                                  conf_dict['max_step'])
+                                                  settings.IDPP_maxiter,
+                                                  settings.IDPP_max_RMSF,
+                                                  settings.IDPP_max_AbsF,
+                                                  settings.max_step)
 
     else:
         # two end structures should be given, generate starting path from that
-        if conf_dict['TS_guess'] is None:
+        if settings.TS_guess is None:
             # only the two ends, gather them, make interpolation
-            labels, starting_path = generate_from_ends(conf_dict)
+            labels, starting_path = generate_from_ends(settings)
 
         else:
             # a TS guess structure has been given, make interpolation
             # with that structure in the middle of the path
-            labels, starting_path = generate_from_ends_and_TS(conf_dict)
+            labels, starting_path = generate_from_ends_and_TS(settings)
 
     return labels, starting_path
 
 
-def gather_end_structures(conf_dict):
+def gather_end_structures(settings):
     """Gather the end structures (xyzs) and the atom labels."""
-    start_xyz = conf_dict['start_structure']
-    end_xyz = conf_dict['end_structure']
+    start_xyz = settings.start_structure
+    end_xyz = settings.end_structure
 
     if start_xyz is None or end_xyz is None:
         raise nex.NEBError('Either start_structure or end_structure (or both) ' +
@@ -267,32 +267,32 @@ def gather_end_structures(conf_dict):
     return labels, start_pvec, end_pvec
 
 
-def gather_starting_path(conf_dict):
+def gather_starting_path(settings):
     """Gather the complete starting trajectory as well as the atom labels."""
-    starttraj = conf_dict['starttraj']
+    starttraj = settings.starttraj
     labels, path_pvecs = io.read_xyz_traj(starttraj)
 
     return labels, path_pvecs
 
 
-def gather_TS_guess(conf_dict):
+def gather_TS_guess(settings):
     """Gather the TS guess structure as well as the atom labels."""
-    tsguess_xyz = conf_dict['TS_guess']
+    tsguess_xyz = settings.TS_guess
     ts_labels, ts_pvec = io.read_xyz_file(tsguess_xyz)
 
     return ts_labels, ts_pvec
 
 
-def generate_from_ends(conf_dict):
+def generate_from_ends(settings):
     """Interpolate the starting path in the user specified method (cartesian, internal, geodesic).
     This function also applies the translational (and rotational) alignement as well 
     as the IDPP optimization. Starts from the two end structures."""
-    labels, start_pvec, end_pvec = gather_end_structures(conf_dict)
+    labels, start_pvec, end_pvec = gather_end_structures(settings)
 
     # recenter and align the given structures
     end_sequence = np.vstack([start_pvec, end_pvec])
     end_sequence = sam.align_path(end_sequence,
-                                  conf_dict['rot_align_mode'])
+                                  settings.rot_align_mode)
 
     start_pvec = end_sequence[0]
     end_pvec = end_sequence[1]
@@ -300,26 +300,26 @@ def generate_from_ends(conf_dict):
     # generate the starting path 
     startpath = pim.interpolate_path(start_pvec,
                                      end_pvec,
-                                     conf_dict['n_images'],
+                                     settings.n_images,
                                      labels,
-                                     conf_dict['interp_mode'],
-                                     conf_dict['rot_align_mode'],
-                                     IDPP=conf_dict['IDPP'],
-                                     SIDPP=conf_dict['SIDPP'],
-                                     IDPP_maxiter=conf_dict['IDPP_maxiter'],
-                                     IDPP_max_RMSF=conf_dict['IDPP_max_RMSF'],
-                                     IDPP_max_AbsF=conf_dict['IDPP_max_AbsF'],
-                                     max_step=conf_dict['max_step'])
+                                     settings.interp_mode,
+                                     settings.rot_align_mode,
+                                     IDPP=settings.IDPP,
+                                     SIDPP=settings.SIDPP,
+                                     IDPP_maxiter=settings.IDPP_maxiter,
+                                     IDPP_max_RMSF=settings.IDPP_max_RMSF,
+                                     IDPP_max_AbsF=settings.IDPP_max_AbsF,
+                                     max_step=settings.max_step)
 
     return labels, startpath
 
 
-def generate_from_ends_and_TS(conf_dict):
+def generate_from_ends_and_TS(settings):
     """Interpolate the starting path in the user specified method (cartesian, internal, geodesic).
     This function also applies the translational (and rotational) alignement as well 
     as the IDPP optimization. Starts from the two end structures and a TS guess structure."""
-    labels, start_pvec, end_pvec = gather_end_structures(conf_dict)
-    ts_labels, ts_pvec = gather_TS_guess(conf_dict)
+    labels, start_pvec, end_pvec = gather_end_structures(settings)
+    ts_labels, ts_pvec = gather_TS_guess(settings)
 
     if labels != ts_labels:
         raise nex.NEBError('Atomic labels of end structures and TS guess' +
@@ -328,25 +328,25 @@ def generate_from_ends_and_TS(conf_dict):
     # recenter and align the given structures
     end_sequence = np.vstack([start_pvec, ts_pvec, end_pvec])
     end_sequence = sam.align_path(end_sequence,
-                                  conf_dict['rot_align_mode'])
+                                  settings.rot_align_mode)
 
     start_pvec = end_sequence[0]
     ts_pvec = end_sequence[1]
     end_pvec = end_sequence[2]
 
     # generate the starting path
-    n_imgs_per_segment= int(conf_dict['n_images'] / 2)
+    n_imgs_per_segment= int(settings.n_images / 2)
 
-    kwargs = {'n_new_interps': n_imgs_per_segment,
+    kwargs = {'n_new_interps' : n_imgs_per_segment,
               'labels' : labels,
-              'interp_mode' : conf_dict['interp_mode'],
-              'rot_align_mode' : conf_dict['rot_align_mode'],
-              'IDPP':conf_dict['IDPP'],
-              'SIDPP':conf_dict['SIDPP'],
-              'IDPP_maxiter':conf_dict['IDPP_maxiter'],
-              'IDPP_max_RMSF':conf_dict['IDPP_max_RMSF'],
-              'IDPP_max_AbsF':conf_dict['IDPP_max_AbsF'],
-              'max_step':conf_dict['max_step']}
+              'interp_mode' : settings.interp_mode,
+              'rot_align_mode' : settings.rot_align_mode,
+              'IDPP' : settings.IDPP,
+              'SIDPP' : settings.SIDPP,
+              'IDPP_maxiter' : settings.IDPP_maxiter,
+              'IDPP_max_RMSF' : settings.IDPP_max_RMSF,
+              'IDPP_max_AbsF': settings.IDPP_max_AbsF,
+              'max_step' : settings.max_step}
 
     segment1 = pim.interpolate_path(start_pvec,
                                     ts_pvec,
@@ -369,31 +369,34 @@ def generate_from_ends_and_TS(conf_dict):
 
 
 def process_input_path(inpfile_path):
-    """Get the input parameters either from the input file or from the work directory. Returns a dictionary."""
+    """
+    Get the input parameters either from the input file or from the work directory. Returns a settings object.
+    """
     logger = logging.getLogger(__name__)
 
     # check if inpfile_path is an actual file, or if it's a directory
     if os.path.isfile(inpfile_path):
         # load the input file normally
-        conf_dict = conf.load_inputfile(inpfile_path)
+        settings = conf.Settings(inpfile_path)
 
     elif os.path.isdir(inpfile_path):
         # The given path is the workdir
         logger.warning('Warning: directory was given as argument in program call. ' +
                        'This requires the directory to include all nessecary files in the ' +
                        'correctly named manner.')
-        conf_dict = process_workdir(inpfile_path)
+        settings = process_workdir(inpfile_path)
 
     else:
         raise nex.NEBError('Error: argument given in program call is no '
                            'valid file or directory: ' + str(inpfile_path))
 
-    return conf_dict
+    return settings
 
 
 def process_workdir(wdirpath):
-    """Sort all nessecary files given in the work directory and read the input file.
-    Returns a dictionary.
+    """
+    Sort all nessecary files given in the work directory and read the input file.
+    Returns a settings object.
     """
     logger = logging.getLogger(__name__)
     contents = list(os.listdir(wdirpath))
@@ -406,16 +409,16 @@ def process_workdir(wdirpath):
     inipath = wdirpath / inifiles[0]
 
     # try to read the ini, skipping the '[options]' line at the start
-    conf_dict = conf.load_inputfile(inipath)
+    settings = conf.Settings(inipath)
 
     # if we have a starttraj given, the conf data is already compatible
-    if conf_dict['starttraj'] is not None:
-        return conf_dict
+    if settings.starttraj is not None:
+        return settings
 
     # If start and end structure are explicitly given, there is also no need for further processing
-    elif (conf_dict['start_structure'] is not None 
-          and conf_dict['end_structure'] is not None):
-        return conf_dict
+    elif (settings.start_structure is not None 
+          and settings.end_structure is not None):
+        return settings
 
     else:
         # all xyz files need to be automatically read and sorted
@@ -436,8 +439,8 @@ def process_workdir(wdirpath):
             xyz_filepaths.sort()
 
             # Remove TS guess from xyz_filepaths
-            if conf_dict['TS_guess'] is not None:
-                TS_path = Path(conf_dict['TS_guess'])
+            if settings.TS_guess is not None:
+                TS_path = Path(settings.TS_guess)
                 xyz_filepaths = [filepath for filepath in xyz_filepaths
                                  if not os.path.samefile(filepath, TS_path)]
 
@@ -447,25 +450,25 @@ def process_workdir(wdirpath):
                                 ' workdir. There must be two xyz files for' +
                                 ' the two end structures.')
 
-            if conf_dict['start_structure'] is None:
-                conf_dict['start_structure'] = str(xyz_filepaths[0])
-            if (conf_dict['end_structure'] is None):
-                conf_dict['end_structure'] = str(xyz_filepaths[1])
+            if settings.start_structure is None:
+                settings.start_structure = str(xyz_filepaths[0])
+            if (settings.end_structure is None):
+                settings.end_structure = str(xyz_filepaths[1])
 
         else:
             # Overwrite only if necessary
-            if conf_dict['start_structure'] is None:
-                conf_dict['start_structure'] = str(one[0])
-            if conf_dict['end_structure'] is None:
-                conf_dict['end_structure'] = str(two[0])
-            if (conf_dict['TS_guess'] is None) and (len(ts) == 1):
-                conf_dict['TS_guess'] =  str(ts[0])
+            if settings.start_structure is None:
+                settings.start_structure = str(one[0])
+            if settings.end_structure is None:
+                settings.end_structure = str(two[0])
+            if (settings.TS_guess is None) and (len(ts) == 1):
+                settings.TS_guess =  str(ts[0])
 
-        logger.info('Start structure set to: %s', conf_dict['start_structure'])
-        logger.info('End structure set to: %s', conf_dict['end_structure'])
-        logger.info('TS structure set to: %s', conf_dict['TS_guess'])
+        logger.info('Start structure set to: %s', settings.start_structure)
+        logger.info('End structure set to: %s', settings.end_structure)
+        logger.info('TS structure set to: %s', settings.TS_guess)
 
-        return conf_dict
+        return settings
 
 
 def find_workdir(inpfile_path:Path):
@@ -511,13 +514,13 @@ def find_resultfolder_name(target_dir):
             return folder_name
 
 
-def find_tempdir(conf_dict):
+def find_tempdir(settings):
     """Reurn the correct path of the temp directory. Either from the input file or the 
     environment variable TMPDIR."""
     logger = logging.getLogger(__name__)
-    if conf_dict['tempdir'] is not None:
+    if settings.tempdir is not None:
         logger.info('Using tempdir specified in input file.')
-        tempdir = Path(conf_dict['tempdir'])
+        tempdir = Path(settings.tempdir)
 
     else:
         tempdir = os.getenv('NEB_TMPDIR')

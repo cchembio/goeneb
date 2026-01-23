@@ -350,7 +350,7 @@ class self_consistent_tangents:
                 logger.info('Harmonic NEB already converged, doing scaled AMGD')
                 return np.array(AMGD_steps) * 0.1
 
-    def update(self, cart_pvecs, cart_grads, energies, hessians, internals=None):
+    def update(self, cart_pvecs, cart_grads, energies, hessians):
         """
         Update function for the local hessians of the images.
         """

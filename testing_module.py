@@ -36,9 +36,9 @@ def main():
     # Test the interfaces
     logger.info('')
     logger.info('INTERFACES')
-    test_orca(labels, pvec, tempdir)
-    test_molpro(labels, pvec, tempdir)
-    test_gaussian(labels, pvec, tempdir)
+    #test_orca(labels, pvec, tempdir)
+    #test_molpro(labels, pvec, tempdir)
+    #test_gaussian(labels, pvec, tempdir)
 
     filepath = os.path.join(script_dir, 'testjobs/pentadiene-2.xyz')
     labels, pvec2 = read_xyz_file(filepath)
@@ -114,9 +114,9 @@ def test_step_prediction(labels, start_pvec, end_pvec, tempdir):
         settings.max_step = 5
         settings.workdir = tempdir
         settings.interp_mode = 'cartesian'
-        settings.start_time
-        settings.relaxed_neb
-        settings.failed_img_tol_percent
+        settings.start_time = thistime
+        settings.relaxed_neb = True
+        settings.failed_img_tol_percent = 0
 
         logger.info('-----  SD             -----')
         engrfunc, engrfunc_kwargs = gather_engrfunc(labels, settings, None)
@@ -228,9 +228,10 @@ def test_interpolation(start_pvec, end_pvec, labels, mode):
 def test_idpp(start_pvec, end_pvec):
     logger = logging.getLogger(__name__)
     logger.info('-----  IDPP           -----')
+    settings = Settings()
     try:
         path = [start_pvec, cart_interp, end_pvec]
-        idpp_path = do_IDPP_opt_pass(path)
+        idpp_path = do_IDPP_opt_pass(path, settings)
         logger.debug(list(idpp_path[1]))
         rmsd, check = check_vector(idpp_path[1], idpp_interp)
         logger.info(f'IDPP:                            RMSD:  {rmsd:+8.4e}   |   {bool2msg(check)}')

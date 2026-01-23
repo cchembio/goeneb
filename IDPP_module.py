@@ -85,8 +85,8 @@ def IDPP_gradS(pvec, ideal_dmat, w_exp=4.0):
 # ----------------------------------------------------------------------
 
 class IDPP(BasicNEB):
-    def __init__(self, NEBPath:NEBPath, dict={}):
-        super().__init__(NEBPath, dict)
+    def __init__(self, NEBPath:NEBPath, settings=None):
+        super().__init__(NEBPath, settings)
 
     def calc_springgrads(self):
         all_img_pvecs = self.path.get_img_pvecs(include_ends=True)
@@ -137,18 +137,18 @@ class IDPP(BasicNEB):
         rmsf = cm.NEB_RMSF(IDPP_neb_grads)
         absf = cm.NEB_ABSF(IDPP_neb_grads)
 
-        logger.debug('IDPP Max. RMSF: %f Tol.: %f', rmsf, self.RMSF_thresh)
-        logger.debug('IDPP Max. Abs. F: %f Tol.: %f', absf, self.MAXF_thresh)
+        logger.debug('IDPP Max. RMSF: %f Tol.: %f', rmsf, self.IDPP_max_RMSF)
+        logger.debug('IDPP Max. Abs. F: %f Tol.: %f', absf, self.IDPP_max_AbsF)
 
-        if rmsf > self.RMSF_thresh:
+        if rmsf > self.IDPP_max_RMSF:
             return False
-        if absf > self.MAXF_thresh:
+        if absf > self.IDPP_max_AbsF:
             return False
         return True
     
 class S_IDPP(IDPP):
-    def __init__(self, NEBPath:NEBPath, dict={}):
-        super().__init__(NEBPath, dict)
+    def __init__(self, NEBPath:NEBPath, settings=None):
+        super().__init__(NEBPath, settings)
 
     def initialize_path(self, engrad_calc_func, engrad_calc_kwargs={}):
         """
@@ -264,9 +264,10 @@ class S_IDPP(IDPP):
         absf_image = cm.NEB_ABSF(IDPP_neb_grads[img_index-1])
         logger.debug(f"Image {img_index}: RMSF: {rmsf_image}, AbsF: {absf_image}")
 
-        if rmsf_image > self.RMSF_thresh:
+        # Thresholds 10 times more relaxed than normal IDPP
+        if rmsf_image > self.IDPP_max_RMSF * 10:
             return False
-        if absf_image > self.MAXF_thresh:
+        if absf_image > self.IDPP_max_AbsF * 10:
             return False
         return True
     
@@ -281,18 +282,9 @@ class S_IDPP(IDPP):
 # ----------------------------------------------------------------------
 
 def do_IDPP_opt_pass(path_pvecs,
-                     IDPP_maxiter=1000,
-                     IDPP_max_RMSF=0.00945,
-                     IDPP_max_AbsF=0.0189,
-                     max_step=0.05):
+                     settings=None):
     # All the info needed to be passed on
-    dict = {'w_exp'     : 4.0,
-    'maxiter'           : IDPP_maxiter,
-    'RMSF_thresh'       : IDPP_max_RMSF,
-    'MAXF_thresh'       : IDPP_max_AbsF,
-    'stepsize'          : 0.1,
-    'k_const'           : 1,
-    'max_step'          : max_step}
+    idpp_settings = settings.get_idpp_settings()
 
     # calculate 'ideal' distance matrices
     start_dmat = calculate_distmat(path_pvecs[0])
@@ -321,18 +313,18 @@ def do_IDPP_opt_pass(path_pvecs,
     # Now, we have collected all data needed to generate
     # the NEBPath object that can be fed into the NEB optimizer
     # loop function from the neb_optimizer module.
-    IDPP_Path = NEBPath(labels, 
-                        path_pvecs, 
-                        engrad_calc_func, 
-                        engrad_calc_kwargs, 
-                        dict)
+    IDPP_Path = NEBPath(labels,
+                        path_pvecs,
+                        engrad_calc_func,
+                        engrad_calc_kwargs,
+                        idpp_settings)
 
     # feed all the collected variables into the NEB optimizer function
     # to perform the IDPP optimization
     # New energy keywords are needed for the images
     engrad_calc_kwargs = {'ideal_dmats' : img_dmats,
                           'w_exp' : 4.0}
-    optimizer = IDPP(IDPP_Path, dict)
+    optimizer = IDPP(IDPP_Path, idpp_settings)
     IDPP_Path, return_state, iterations = optimizer.do_opt_loop(engrad_calc_func, engrad_calc_kwargs, silent_mode=True)
 
     if return_state == 'FAILED':
@@ -349,25 +341,14 @@ def do_IDPP_opt_pass(path_pvecs,
 
 def do_SIDPP_opt_pass(start_pvec,
                       end_pvec,
-                      n_images,
-                      IDPP_maxiter=1000,
-                      IDPP_max_RMSF=0.00945,
-                      IDPP_max_AbsF=0.0189,
-                      max_step=0.05):
+                      settings=None):
     """
     This function starts the SIDPP algorithm and builds an initial path
     with the given parameters. However during the SIDPP the convergence thresholds
     are relaxed by factor 10. Does SIDPP and then IDPP with normal convergence threshholds.
     """
     # All the info needed to be passed on
-    dict = {'w_exp'     : 4.0,
-    'maxiter'           : IDPP_maxiter,
-    'RMSF_thresh'       : IDPP_max_RMSF*10,
-    'MAXF_thresh'       : IDPP_max_AbsF*10,
-    'stepsize'          : 0.1,
-    'k_const'           : 1,
-    'n_images'          : n_images,
-    'max_step'          : max_step}
+    idpp_settings = settings.get_idpp_settings()
 
     # calculate 'ideal' distance matrices
     start_dmat = calculate_distmat(start_pvec)
@@ -377,7 +358,7 @@ def do_SIDPP_opt_pass(start_pvec,
     # which arent counted in interpolate_linear
     ideal_dmats = interpolate_linear(start_dmat,
                                      stop_dmat,
-                                     n_images)
+                                     idpp_settings.n_images)
 
     # set up NEBPath object for the neb optimizer function
     # separate distmats of the ends from the rest of the path
@@ -396,26 +377,24 @@ def do_SIDPP_opt_pass(start_pvec,
     # Now, we have collected all data needed to generate
     # the NEBPath object that can be fed into the NEB optimizer
     # loop function from the neb_optimizer module.
-    cart_interpolation = interpolate_linear(start_pvec, end_pvec, n_images)
+    cart_interpolation = interpolate_linear(start_pvec, end_pvec, idpp_settings.n_images)
     starting_path_pvecs = np.vstack([cart_interpolation[:2], cart_interpolation[-2:]])
     S_IDPP_Path = NEBPath(labels, 
                           starting_path_pvecs, 
                           engrad_calc_func, 
                           engrad_calc_kwargs, 
-                          dict)
+                          idpp_settings)
 
     # feed all the collected variables into the NEB optimizer function
     # to perform the IDPP optimization
     # New energy keywords are needed for the images
     engrad_calc_kwargs = {'ideal_dmats' : img_dmats,
                           'w_exp' : 4.0}
-    optimizer = S_IDPP(S_IDPP_Path, dict)
+    optimizer = S_IDPP(S_IDPP_Path, idpp_settings)
     S_IDPP_Path, iterations = optimizer.initialize_path(engrad_calc_func, engrad_calc_kwargs)
     logger.info('SIDPP path completed after %i iterations.', iterations)
 
-    # Set the thresholds lower for normal IDPP
-    optimizer.RMSF_thresh = IDPP_max_RMSF
-    optimizer.MAXF_thresh = IDPP_max_AbsF
+    # normal IDPP
     IDPP_Path, return_state, iterations = optimizer.do_opt_loop(engrad_calc_func, engrad_calc_kwargs, silent_mode=True)
 
     if return_state == 'FAILED':

@@ -12,7 +12,7 @@ class NEBPath:
                  starting_path, 
                  engrfunc=None, 
                  engrfunc_kwargs=None, 
-                 dict={}):
+                 settings=None):
 
         # with the engrad function, we can calculate the energies of the ends
         # for the nebpath object
@@ -46,7 +46,7 @@ class NEBPath:
         self.tanvecs = np.zeros_like(self.img_pvecs)
         self.nebgrads = np.zeros_like(self.img_pvecs)
         self.orth_grads = np.zeros_like(self.img_pvecs)
-        self.img_pair_ks = np.zeros(len(self.img_pvecs)+1) + dict['k_const']
+        self.img_pair_ks = np.zeros(len(self.img_pvecs)+1) + settings.k_const
         self.ci_index = None
         self.misc_data = {}
 

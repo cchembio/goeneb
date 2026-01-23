@@ -48,12 +48,12 @@ class Settings:
         self.remove_gradrot = False
 
         # IDPP and interpolation
-        self.interp_mode = None
-        self.IDPP = None
-        self.SIDPP = None
-        self.IDPP_maxiter = None
-        self.IDPP_max_RMSF = None
-        self.IDPP_max_AbsF = None
+        self.interp_mode = 'internal'
+        self.IDPP = True
+        self.SIDPP = False
+        self.IDPP_maxiter = 1000
+        self.IDPP_max_RMSF = 0.00945
+        self.IDPP_max_AbsF = 0.0189
 
         # convergence
         self.Max_RMSF_tol = 0.000945
@@ -164,4 +164,16 @@ class Settings:
                 return parsed_entry
             # it is a string
             return entry
+        
+    def get_idpp_settings(self):
+        # copy the current settings attributes
+        idpp_settings = type(self)()
+        idpp_settings.__dict__.update(self.__dict__)
+
+        # change some settings IDPP specific
+        idpp_settings.maxiter = self.IDPP_maxiter
+        idpp_settings.stepsize = 0.1
+        idpp_settings.k_const = 1
+        return idpp_settings
+
 

@@ -16,6 +16,8 @@ class BasicNEB:
         if settings is not None:
             self.__dict__.update(settings.__dict__)
 
+        self.settings = settings
+
     @property
     def images(self):
         return self.path.n_images()

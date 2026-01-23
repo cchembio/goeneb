@@ -232,7 +232,7 @@ class NEB_Optimizer(BasicNEB):
             steps = self.predictor.predict(nebgrads, 
                                            self.hessians,
                                            full_energies,
-                                           self.dict,
+                                           self.settings,
                                            self.path)
 
         elif self.step_pred_method in ['AMGD', 'SD']:
@@ -397,7 +397,7 @@ class NEB_Optimizer(BasicNEB):
                            'convergence yet.')
             return False
 
-        # now check for signals of convergence. get the values from conf dict
+        # now check for signals of convergence. get the values from settings
         Max_RMSF_tol = self.max_rmsf
         Max_AbsF_tol = self.max_absf
 
@@ -426,7 +426,7 @@ class NEB_Optimizer(BasicNEB):
     def conv_checker_func_ci(self, steps):
         energies = self.path.get_energies()
 
-        # now check for signals of convergence. get the values from conf dict
+        # now check for signals of convergence. get the values from settings
         Max_RMSF_tol = self.Max_RMSF_tol
         Max_AbsF_tol = self.Max_AbsF_tol
         CI_RMSF_tol = self.CI_RMSF_tol
@@ -535,8 +535,8 @@ class NEB_Optimizer(BasicNEB):
 
 
 class SCT_Optimizer(BasicNEB):
-    def __init__(self, NEBPath:NEBPath, dict={}):
-        super().__init__(NEBPath, dict)
+    def __init__(self, NEBPath:NEBPath, settings=None):
+        super().__init__(NEBPath, settings)
 
         # Step predictor is AMGD
         self.predictor = [spm.AMGD(self.harmonic_stepsize_fac, self.AMGD_max_gamma) for _ in range(self.images)]

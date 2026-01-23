@@ -3,7 +3,6 @@ import numpy as np
 import time
 import os
 import logging
-import pprint
 
 import neb_path as path
 import neb_exceptions as nex

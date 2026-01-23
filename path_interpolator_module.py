@@ -98,7 +98,7 @@ def interpolate_path(start_pvec,
                      labels,
                      interp_mode,
                      rot_align_mode,
-                     **IDPP_kwargs):
+                     settings):
     """
     This function does the interpolation of the starting path (including alignment and IDPP),
     with option for cartesian, internal or geodesic.
@@ -108,16 +108,12 @@ def interpolate_path(start_pvec,
     - labels: A list with types of atoms
     - interp_mode: internal, cartesian or geodesic
     - rot_align_mode: None, full or pairwise
-    - IDPP_kwargs: all IDPP kwargs including: IDPP and SIDPP (True/False), IDPP_maxiter, IDPP_max_RMSF, IDPP_max_AbsF, max_step
+    - settings object (needs the function get_idpp_settings())
     """
-    if IDPP_kwargs['SIDPP']:
+    if settings.SIDPP:
         path_pvecs = idpp.do_SIDPP_opt_pass(start_pvec,
                                             end_pvec,
-                                            n_new_interps,
-                                            IDPP_kwargs['IDPP_maxiter'],
-                                            IDPP_kwargs['IDPP_max_RMSF'],
-                                            IDPP_kwargs['IDPP_max_AbsF'],
-                                            IDPP_kwargs['max_step'])
+                                            settings)
     else:
         # initial interpolations
         path_pvecs = do_interpolation(start_pvec,
@@ -130,16 +126,13 @@ def interpolate_path(start_pvec,
         path_pvecs = sam.align_path(path_pvecs, rot_align_mode)
 
         # IDPP
-        if IDPP_kwargs['IDPP']:
+        if settings.IDPP:
             if interp_mode == 'geodesic':
                 logger.warning('IDPP pass should not be selected, when using geodesic interpolation, '
                               + 'IDPP pass will be skipped in favor of geodesic interpolation.')
             else:
                 path_pvecs = idpp.do_IDPP_opt_pass(path_pvecs,
-                                                   IDPP_kwargs['IDPP_maxiter'],
-                                                   IDPP_kwargs['IDPP_max_RMSF'],
-                                                   IDPP_kwargs['IDPP_max_AbsF'],
-                                                   IDPP_kwargs['max_step'])
+                                                   settings)
 
     # translational and rotational alignement (again after IDPP)
     path_pvecs = sam.align_path(path_pvecs, rot_align_mode)

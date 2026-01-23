@@ -51,7 +51,7 @@ def main(args):
         logger.info(message)
         logger.setLevel(level)
 
-        logger.debug('Chosen settings:\n %s', pprint.pformat(settings, indent=2))
+        logger.debug('Chosen settings:\n%s', settings)
 
         # find/generate workdir, where the results should be stored
         workdir = find_workdir(inpfile_path)
@@ -304,12 +304,7 @@ def generate_from_ends(settings):
                                      labels,
                                      settings.interp_mode,
                                      settings.rot_align_mode,
-                                     IDPP=settings.IDPP,
-                                     SIDPP=settings.SIDPP,
-                                     IDPP_maxiter=settings.IDPP_maxiter,
-                                     IDPP_max_RMSF=settings.IDPP_max_RMSF,
-                                     IDPP_max_AbsF=settings.IDPP_max_AbsF,
-                                     max_step=settings.max_step)
+                                     settings)
 
     return labels, startpath
 

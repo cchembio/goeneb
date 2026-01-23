@@ -115,6 +115,7 @@ class Settings:
     def check_values(self, user_settings:dict):
         for key in user_settings:
             if key.lower() not in self.allowed_keywords_map:
+                logger.error('Invalid keyword: %s. Please consult the manual for allowed keywords.', key)
                 raise ValueError(f"Invalid keyword: {key}")
             
     def set_values(self, user_settings:dict):
@@ -175,5 +176,12 @@ class Settings:
         idpp_settings.stepsize = 0.1
         idpp_settings.k_const = 1
         return idpp_settings
+
+    def __str__(self):
+        excluded = {'allowed_keywords', 'allowed_keywords_map'}
+        return "\n".join(
+            f"{key} = {value!r}" 
+            for key, value in self.__dict__.items()
+            if key not in excluded)
 
 

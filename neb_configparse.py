@@ -139,7 +139,8 @@ class Settings:
         """
         function for checking if a config entry
         is a special kind of type (e.g. None, bool, int,...)
-        and convert them if they are.
+        and convert them if they are. Only lower case if
+        it is a string.
         """
         entry = entry.strip()
         if entry.lower() == 'none':
@@ -164,7 +165,7 @@ class Settings:
             else:
                 return parsed_entry
             # it is a string
-            return entry
+            return entry.lower()
         
     def get_idpp_settings(self):
         # copy the current settings attributes

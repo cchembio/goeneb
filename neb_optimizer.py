@@ -44,26 +44,26 @@ class NEB_Optimizer(BasicNEB):
         self.hessian = None
         self.hessians = [None] * self.images
 
-        if self.step_pred_method == 'AMGD':
+        if self.step_pred_method == 'amgd':
             self.predictor = [spm.AMGD(self.stepsize_fac, self.AMGD_max_gamma) for _ in range(self.images)]
 
-        elif self.step_pred_method == 'SD':
+        elif self.step_pred_method == 'sd':
             self.predictor = [spm.SD(self.stepsize_fac) for _ in range(self.images)]
 
-        elif self.step_pred_method in ('NR', 'RFO'):
-            if self.step_pred_method == 'NR':
+        elif self.step_pred_method in ('nr', 'rfo'):
+            if self.step_pred_method == 'nr':
                 self.predictor = spm.NewtonRaphson(self.images, self.BFGS_start, self.NR_start, self.stepsize_fac, self.AMGD_max_gamma)
-            elif self.step_pred_method == 'RFO':
+            elif self.step_pred_method == 'rfo':
                 self.predictor = spm.RationalFunction(self.images, self.BFGS_start, self.NR_start, self.stepsize_fac, self.AMGD_max_gamma)
             # Also set up global hessian
             self.hessian = hm.hessian(mode=self.initial_hessian, start=self.BFGS_start, labels=self.labels) 
 
-        elif self.step_pred_method in ('SCT', 'L-RFO', 'L-NR'):
-            if self.step_pred_method == 'SCT':
+        elif self.step_pred_method in ('sct', 'l-rfo', 'l-nr'):
+            if self.step_pred_method == 'sct':
                 self.predictor = spm.self_consistent_tangents(self.images, self.BFGS_start, self.NR_start, self.stepsize_fac, self.AMGD_max_gamma)
-            elif self.step_pred_method == 'L-RFO':
+            elif self.step_pred_method == 'l-rfo':
                 self.predictor = spm.LocalRF(self.images, self.BFGS_start, self.NR_start, self.stepsize_fac, self.AMGD_max_gamma)
-            elif self.step_pred_method == 'L-NR':
+            elif self.step_pred_method == 'l-nr':
                 self.predictor = spm.LocalNR(self.images, self.BFGS_start, self.NR_start, self.stepsize_fac, self.AMGD_max_gamma)
             # Also set up hessians
             self.hessians = [hm.hessian(mode=self.initial_hessian, start = self.BFGS_start, labels=self.labels) for _ in range(self.images)]
@@ -226,7 +226,7 @@ class NEB_Optimizer(BasicNEB):
             nebgrads = self.path.get_orth_grads()
 
         # Perform the step prediction
-        if self.step_pred_method == 'SCT':
+        if self.step_pred_method == 'sct':
             # Update the hessian objects by providing cartesian coordinates
             self.predictor.update(img_pvecs, engrads, energies, self.hessians)
             steps = self.predictor.predict(nebgrads, 
@@ -235,18 +235,18 @@ class NEB_Optimizer(BasicNEB):
                                            self.settings,
                                            self.path)
 
-        elif self.step_pred_method in ['AMGD', 'SD']:
+        elif self.step_pred_method in ['amgd', 'sd']:
             for object, pvec in zip(self.predictor, img_pvecs):
                 object.update(pvec)
             steps = [object.predict(nebgrad) 
                      for object, nebgrad in zip(self.predictor, nebgrads)]
 
-        elif self.step_pred_method in ['NR','RFO']:
+        elif self.step_pred_method in ['nr','rfo']:
             # no checking for failed calculations, is that good?
             self.predictor.update(img_pvecs, nebgrads, energies, self.hessian)
             steps = self.predictor.predict(img_pvecs, nebgrads, energies, self.hessian)
 
-        elif self.step_pred_method in ['L-NR','L-RFO']:
+        elif self.step_pred_method in ['l-nr','l-rfo']:
             # no checking for failed calculations, is that good?
             self.predictor.update(img_pvecs, nebgrads, energies, self.hessians)
             steps = self.predictor.predict(img_pvecs, nebgrads, energies, self.hessians)
@@ -264,7 +264,7 @@ class NEB_Optimizer(BasicNEB):
         # we now add in the spring steps from the analytical
         # position scheme 
         if self.use_analytical_springpos:
-            if self.step_pred_method == 'SCT':
+            if self.step_pred_method == 'sct':
                 logger.warning('Analytical spring position scheme cant be used with'
                                 + ' self consisten tangents. The NEB will do the SCT'
                                 + ' and ignore the use_analytical_springpos')
@@ -328,22 +328,14 @@ class NEB_Optimizer(BasicNEB):
         # the initial path
         interp_func =  pim.interpolate_path
 
-        # set up additional arguments needed by that function
-        interp_func_kwargs = {'labels' : self.labels,
-                              'interp_mode' : self.interp_mode,
-                              'rot_align_mode' : self.rot_align_mode,
-                              'IDPP' : self.IDPP,
-                              'SIDPP' : False,      # probably not reasonable to do SIDPP here..
-                              'IDPP_maxiter' : self.IDPP_maxiter,
-                              'IDPP_max_RMSF' : self.IDPP_max_RMSF,
-                              'IDPP_max_AbsF' : self.IDPP_max_AbsF,
-                              'max_step' : self.max_step}
-
         # perform the reinterpolation of failed images
         new_full_path_pvecs = fir.replace_failed_images(full_path_pvecs,
                                                         full_path_energies,
                                                         interp_func,
-                                                        interp_func_kwargs)
+                                                        self.labels,
+                                                        self.interp_mode,
+                                                        self.rot_align_mode,
+                                                        self.settings)
 
         # in addition to the image replacing, the images need to
         # be recentered and rotationally realigned every iteration.

@@ -102,20 +102,20 @@ class hessian:
         initial_hessian = self.initialize()
         Hk = np.linalg.inv(initial_hessian)
 
-        #pvecs = self.cart_pvecs
-        #grads = self.cart_grads
+        pvecs = self.cart_pvecs
+        grads = self.cart_grads
 
-        #n = len(pvecs)
-        #sk = [pvecs[i] - pvecs[i-1] for i in range(self.start, n)]
-        #yk = [grads[i] - grads[i-1] for i in range(self.start, n)]
-        #rhos = [1/np.dot(s,y) for s, y in zip(sk, yk)]
-        #I = np.identity(len(sk[0]))
+        n = len(pvecs)
+        sk = [pvecs[i] - pvecs[i-1] for i in range(self.start, n)]
+        yk = [grads[i] - grads[i-1] for i in range(self.start, n)]
+        rhos = [1/np.dot(s,y) for s, y in zip(sk, yk)]
+        I = np.identity(len(sk[0]))
 
         # updating the inverse hessian
-        #for s, y, rho in zip(sk, yk, rhos):
-        #    nu1 = I - rho * np.outer(s, y)
-        #    nu2 = I - rho * np.outer(y, s)
-        #    Hk = np.dot(nu1, np.dot(Hk, nu2)) + rho * np.outer(s, s)
+        for s, y, rho in zip(sk, yk, rhos):
+            nu1 = I - rho * np.outer(s, y)
+            nu2 = I - rho * np.outer(y, s)
+            Hk = np.dot(nu1, np.dot(Hk, nu2)) + rho * np.outer(s, s)
 
         # Set according to the setter function
         eigvals, eigvecs = np.linalg.eig(np.linalg.inv(Hk))

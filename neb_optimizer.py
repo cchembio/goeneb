@@ -686,8 +686,8 @@ class SCT_Optimizer(BasicNEB):
         max_rmsf = self.harmonic_conv_fac * self.Max_RMSF_tol
         max_absf = self.harmonic_conv_fac * self.Max_AbsF_tol
 
-        logger.info('Harmonic Max. RMSF: %f Tol.: %f', rmsf, max_rmsf)
-        logger.info('Harmonic Max. Abs. F: %f Tol.: %f', absf, max_absf)
+        logger.warning('Harmonic Max. RMSF: %f Tol.: %f', rmsf, max_rmsf)
+        logger.warning('Harmonic Max. Abs. F: %f Tol.: %f', absf, max_absf)
 
         if rmsf < max_rmsf and absf < max_absf:
             return True

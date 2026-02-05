@@ -86,6 +86,18 @@ class Settings:
         # for case-insensitive checking of user settings
         self.allowed_keywords = set(self.__dict__.keys())
         self.allowed_keywords_map = {k.lower(): k for k in self.allowed_keywords}
+        self.case_sensitive_kws = {'molpro_path',
+                                   'gaussian_path',
+                                   'orca_path',
+                                   'orca_keywords',
+                                   'orca_keywords2',
+                                   'gaussian_keywords',
+                                   'molpro_keywords',
+                                   'starttraj',
+                                   'ts_guess',
+                                   'start_structure',
+                                   'end_structure',
+                                   'tempdir'}
 
         if neb_ini is not None:
             user_settings = self.parse_inpfile(neb_ini)
@@ -106,7 +118,7 @@ class Settings:
             try:
                 clean_line = self.clean_eqsign(line)
                 [newkey, newval] = clean_line.split('=', 1)
-                user_settings[newkey] = self.convert_entry(newval)
+                user_settings[newkey] = self.convert_entry(newval, newkey)
             except (ValueError, IndexError):
                 raise nex.NEBError("Error in neb_configparse: couldn't parse" +
                                    "input file line: " + str(line))
@@ -134,8 +146,7 @@ class Settings:
         right = text[eqsign+1:].strip()
         return left + '=' + right
 
-    @staticmethod
-    def convert_entry(entry):
+    def convert_entry(self, entry, key):
         """
         function for checking if a config entry
         is a special kind of type (e.g. None, bool, int,...)
@@ -165,7 +176,10 @@ class Settings:
             else:
                 return parsed_entry
             # it is a string
-            return entry.lower()
+            if key.lower() in self.case_sensitive_kws:
+                return entry
+            else:
+                return entry.lower()
         
     def get_idpp_settings(self):
         # copy the current settings attributes
@@ -179,7 +193,7 @@ class Settings:
         return idpp_settings
 
     def __str__(self):
-        excluded = {'allowed_keywords', 'allowed_keywords_map'}
+        excluded = {'allowed_keywords', 'allowed_keywords_map', 'case_sensitive_kws'}
         return "\n".join(
             f"{key} = {value!r}" 
             for key, value in self.__dict__.items()

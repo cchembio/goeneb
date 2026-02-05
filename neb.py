@@ -225,11 +225,7 @@ def produce_starting_path(settings):
         
         # apply IDPP if selected
         if settings.IDPP:
-            starting_path = idpp.do_IDPP_opt_pass(starting_path,
-                                                  settings.IDPP_maxiter,
-                                                  settings.IDPP_max_RMSF,
-                                                  settings.IDPP_max_AbsF,
-                                                  settings.max_step)
+            starting_path = idpp.do_IDPP_opt_pass(starting_path, settings)
 
     else:
         # two end structures should be given, generate starting path from that

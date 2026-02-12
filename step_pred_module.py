@@ -136,7 +136,7 @@ class BFGS:
             energies = np.array([energies])
 
         self.do_AMGD = False
-        if None in energies:
+        if None in energies or hessian is None:
             self.do_AMGD = True
 
         if (self.iteration == 1) or (self.iteration < self.BFGS_start):
@@ -319,7 +319,7 @@ class self_consistent_tangents:
 
     def predict(self, nebgradvecs, hessians, energies, settings=None, path=None):
         self.do_AMGD = False
-        if None in energies:
+        if None in energies or None in hessians:
             self.do_AMGD = True
         if (self.iteration == 0) or (self.iteration < self.BFGS_start):
             # Its the first iteration(s)

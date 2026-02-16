@@ -32,7 +32,7 @@ class Settings:
         self.use_analytical_springpos = False
 
         # step prediction
-        self.step_pred_method = 'AMGD'
+        self.step_pred_method = 'amgd'
         self.stepsize_fac = 0.2
         self.harmonic_stepsize_fac = 0.01
         self.harmonic_conv_fac = 0.7

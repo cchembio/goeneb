@@ -48,7 +48,8 @@ class BasicNEB:
         if silent_mode:
             root_logger = logging.getLogger()
             old_level = root_logger.getEffectiveLevel()
-            root_logger.setLevel(logging.WARNING)
+            if old_level < logging.WARNING:
+                root_logger.setLevel(logging.WARNING)
 
         try:
             logger.info('Beginning NEB optimization loop.\n')

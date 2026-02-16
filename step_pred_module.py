@@ -136,7 +136,7 @@ class BFGS:
             energies = np.array([energies])
 
         self.do_AMGD = False
-        if None in energies or hessian is None:
+        if None in energies or hessian.get_hessian() is None:
             self.do_AMGD = True
 
         if (self.iteration == 1) or (self.iteration < self.BFGS_start):

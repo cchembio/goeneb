@@ -1,9 +1,7 @@
 import numpy as np
 import logging
-import scipy as sp
 
 from internal_module import calcBmat, calcKmat, convert_gradient
-from springforce_module import build_spring_matrix
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +68,13 @@ class hessian:
                     logger.error(f"Reshape error while building global hessian: check that array size matches labels! {e}")
                     raise
                 lindh_hessians = [Initial_Hess().get_Lindh_Hess(pvec, self.labels, grad) for pvec, grad in zip(pvecs, grads)]
+
+                try:
+                    import scipy as sp
+                except ImportError:
+                    logger.error('For global Lindh hessian scipy is needed, but the module can not be imported.')
+                    raise ImportError
+
                 global_hessian = sp.linalg.block_diag(*lindh_hessians)
                 return global_hessian
         else:

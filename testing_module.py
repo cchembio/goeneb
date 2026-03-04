@@ -5,6 +5,12 @@ import numpy as np
 import time
 
 from logging_module import setup_logger
+
+main_logger = setup_logger(name='test', level='error')
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+
 from logo import logo
 from interfaces.engrad_interface import gather_engrfunc
 from file_sys_io import read_xyz_file
@@ -18,10 +24,6 @@ from neb_configparse import Settings
 np.set_printoptions(precision=12)
 
 def main():
-    main_logger = setup_logger(name='test', level='error')
-    logger = logging.getLogger(__name__)
-    logger.setLevel(logging.INFO)
-    #logger.propagate = False 
     logger.info(logo)
     logger.info('\n\n    Test module of the GöNEB started.\n    All relevant functions of the ' +
                 'NEB are tested and compared with reference values\n    to ensure ' + 
@@ -37,9 +39,10 @@ def main():
     # Test the interfaces
     logger.info('')
     logger.info('INTERFACES')
-    #test_orca(labels, pvec, tempdir)
-    #test_molpro(labels, pvec, tempdir)
-    #test_gaussian(labels, pvec, tempdir)
+    test_orca(labels, pvec, tempdir)
+    test_molpro(labels, pvec, tempdir)
+    test_gaussian(labels, pvec, tempdir)
+    test_tblite(labels, pvec, tempdir)
 
     filepath = os.path.join(script_dir, 'testjobs/pentadiene-2.xyz')
     labels, pvec2 = read_xyz_file(filepath)
@@ -110,10 +113,11 @@ def test_step_prediction(labels, start_pvec, end_pvec, tempdir):
         settings.Relaxed_Max_RMSF_tol = 0
         settings.Relaxed_Max_AbsF_tol = 0
         settings.step_pred_method = 'sd'
-        settings.maxiter = 1
+        settings.maxiter = 2
         settings.logfile_path = logpath
         settings.max_step = 5
         settings.workdir = tempdir
+        settings.resultdir = tempdir
         settings.interp_mode = 'cartesian'
         settings.start_time = thistime
         settings.relaxed_neb = True
@@ -132,7 +136,7 @@ def test_step_prediction(labels, start_pvec, end_pvec, tempdir):
         logger.info('-----  AMGD           -----')
         # adjust settings
         settings.step_pred_method = 'amgd'
-        settings.maxiter = 2
+        settings.maxiter = 3
 
         engrfunc, engrfunc_kwargs = gather_engrfunc(labels, settings, None)
         path_obj = NEBPath(labels, path, engrfunc, engrfunc_kwargs, settings)
@@ -146,7 +150,7 @@ def test_step_prediction(labels, start_pvec, end_pvec, tempdir):
         logger.info('-----  RFO            -----')
         # adjust settings
         settings.step_pred_method = 'rfo'
-        settings.maxiter = 3
+        settings.maxiter = 4
         settings.BFGS_start = 2
         settings.NR_start = 3
 
@@ -219,8 +223,11 @@ def test_interpolation(start_pvec, end_pvec, labels, mode):
             logger.info('Geodesic code is non-deterministic.')
             label = ' '.join([mode, 'rmsd']).upper()
             logger.info(f'{label:12}:                                        |   {rmsd:+8.4e}')
+    except (ImportError, AssertionError):
+        logger.warning(f'{mode.upper():12}:                                         |   NOT TESTED')
+        logger.warning(f"{mode} test failed due to import problems")
     except Exception as e:
-        logger.error(f'{mode.upper():12}:                                        |   ERROR')
+        logger.error(f'{mode.upper():12}:                                         |   ERROR')
         logger.error(f"{mode} test failed due to unexpected exception", exc_info=e)
     finally:
         logger.info('')
@@ -307,8 +314,9 @@ def test_nebgrad(labels, start_pvec, end_pvec):
 def test_orca(atomic_labels, pvec, temp_workdir):
     logger = logging.getLogger(__name__)
     logger.info('-----  ORCA           -----')
+    logger.info('Reference energies and gradients calculated on HF-3c with Orca 6.1.1')
     try:
-        nodes = os.environ['SLURM_NTASKS_PER_NODE']
+        nodes = os.getenv('SLURM_NTASKS_PER_NODE', os.getenv('NUM_THREADS', 1))
         settings = Settings()
         settings.interface = 'orca'
         settings.orca_keywords = 'HF-3c'
@@ -338,8 +346,9 @@ def test_orca(atomic_labels, pvec, temp_workdir):
 def test_molpro(atomic_labels, pvec, temp_workdir):
     logger = logging.getLogger(__name__)
     logger.info('-----  MOLPRO         -----')
+    logger.info('Reference energies and gradients calculated on hf basis=3-21G with Molpro 2025.2')
     try:
-        nodes = os.environ['SLURM_NTASKS_PER_NODE']
+        nodes = os.getenv('SLURM_NTASKS_PER_NODE', os.getenv('NUM_THREADS', 1))
         settings = Settings()
         settings.interface = 'molpro'
         settings.molpro_keywords = 'hf basis=3-21G'
@@ -371,8 +380,9 @@ def test_molpro(atomic_labels, pvec, temp_workdir):
 def test_gaussian(atomic_labels, pvec, temp_workdir):
     logger = logging.getLogger(__name__)
     logger.info('-----  GAUSSIAN       -----')
+    logger.info('Reference energies and gradients calculated on HF/3-21G with Gaussian 16')
     try:
-        nodes = os.environ['SLURM_NTASKS_PER_NODE']
+        nodes = os.getenv('SLURM_NTASKS_PER_NODE', os.getenv('NUM_THREADS', 1))
         settings = Settings()
         settings.interface = 'gaussian'
         settings.gaussian_keywords = 'HF/3-21G'
@@ -401,16 +411,52 @@ def test_gaussian(atomic_labels, pvec, temp_workdir):
         logger.info('')
 
 
+def test_tblite(atomic_labels, pvec, temp_workdir):
+    logger = logging.getLogger(__name__)
+    logger.info('-----  xTB            -----')
+    logger.info('Reference energies and gradients calculated on GFN2-xTB with tblite 0.4.0')
+    try:
+        nodes = os.getenv('SLURM_NTASKS_PER_NODE', os.getenv('NUM_THREADS', 1))
+
+        settings = Settings()
+        settings.interface = 'tblite'
+        settings.tblite_keywords = 'GFN2-xTB'
+        settings.n_threads = nodes
+
+        engrfunc, engrfunc_kwargs = gather_engrfunc(atomic_labels, 
+                                                    settings, 
+                                                    temp_workdir)
+        energy, engrad = engrfunc([pvec], **engrfunc_kwargs)
+        logger.debug(energy)
+        logger.debug(list(engrad))
+        error, close1 = check_value(energy[0], tblite_energy)
+        logger.info(f'tblite Energy:                   Error: {error:+8.4e}   |   {bool2msg(close1)}')
+        error, close2 = check_vector(engrad, tblite_grad)
+        logger.info(f'tblite Gradient:                 Error: {error:+8.4e}   |   {bool2msg(close2)}')
+        logger.info(f'tblite INTERFACE:                                     |   {bool2msg((close1 and close2))}')
+    except ImportError:
+        logger.warning(f'tblite INTERFACE:                                     |   NOT TESTED')
+        logger.warning('tblite module can not be imported.')
+    except Exception as e:
+        logger.error(f'tblite INTERFACE:                                     |   ERROR')
+        logger.error("tblite test failed due to unexpected exception", exc_info=e)
+    finally:
+        logger.info('')
 
 
-orca_energy = -192.689150787606
-orca_grad = np.array([-2.174375192434e-05, -2.563622302322e-05, 1.927415200047e-05, 3.829692129354e-05,  8.621359546793e-06, -1.888489298531e-05, -4.910746241489e-05,  5.800794962805e-05,  1.445227957861e-05, -5.936161903238e-05, -3.615777399757e-05, -2.241841249660e-05, 1.068122961932e-04, -6.175181455424e-05, -6.349946539931e-06, -4.813888328989e-05,  3.481858178507e-07,  1.769113220562e-05, 2.557425323442e-05,  2.894096662073e-06,  1.480222473148e-07, -6.359460177131e-05,  3.360022244042e-05,  4.059228090984e-06, -1.144506769019e-05, -9.755068609710e-07, -6.357703865672e-06, 2.994718720040e-05, -5.181409824544e-06,  2.002145931413e-07, 6.211465519818e-06,  1.223453857313e-05 ,-5.045126555913e-06, 2.707754170464e-05,  1.564504258291e-06 , 5.301152320409e-06, 1.947172097704e-05,  1.243187511338e-05, -2.070098593116e-06])
+
+
+orca_energy = -192.689150787829
+orca_grad = np.array([-2.772758859414e-05, -3.648387458620e-05,  2.497124540762e-05, 3.457342005607e-05,  7.933960330729e-06, -1.936203371388e-05, -4.187506290780e-05,  5.271933753020e-05,  1.505964700358e-05, -5.266929569271e-05, -4.605280895212e-05, -2.234146473855e-05, 9.133729305664e-05, -6.581567058450e-05, -1.271854089726e-05, -4.134254942434e-05,  1.405311839855e-05, -3.907575679785e-06, 9.893232155834e-06,  1.754604848242e-05,  1.152433603192e-05, -3.324401851462e-05,  3.521047696818e-05,  2.583058891400e-05, 1.142418810624e-06, -2.062539688619e-06, -3.958636079663e-06, 2.873521513004e-05,  1.138200374997e-05, -1.122942348324e-05, 7.649097345577e-06,  6.153063533947e-06, -1.057575776822e-06, 2.275582309609e-05, -7.161587689762e-06,  3.642959220328e-06, 7.720173724564e-07,  1.257847628665e-05, -6.453528097982e-06])
 
 molpro_energy = -193.96674057043
 molpro_grad = np.array([ 0.019230185632,  0.006069446932, -0.005572496205, -0.034448310738, -0.005387922875, -0.002975846214,  0.031838234243, -0.017055607861, 0.005786889413,  0.000831383119,  0.041478955525,  0.006256769814, -0.012094549552, -0.027336541898, -0.002804425378,  0.000783401083, 0.005163073812, -0.006612051553, -0.006294239304,  0.004816112537, 0.0032057125  ,  0.003254654517,  0.0035094444  ,  0.00416673839 , 0.002245504862, -0.002429282617,  0.002180834654,  0.000256343238, 0.000730777879, -0.002849113621,  0.002558562561, -0.003009540031, 0.002227278453, -0.003728682867, -0.003635268035, -0.001021090835, -0.004432486795, -0.002913647769, -0.001989201307])
 
 gauss_energy = -192.87417982
 gauss_grad = np.array([ 0.015216845761,  0.007079600032, -0.005152447882, -0.021064427508, -0.007336037757,  0.000235465544,  0.01922081826 , -0.013466927245, 0.003309637988, -0.006920719419,  0.01812000555 ,  0.000887848135, -0.005173446519, -0.009896267056,  0.000807051005, -0.001355224649, -0.00049093384 ,  0.001322793169,  0.000909494948, -0.001123060456, -0.001302782859, -0.00448917291 ,  0.002043774708, -0.001331397092, -0.010661016542,  0.001224408358, -0.001732060605,  0.003329121065, -0.010701970686,  0.0046283399  , -0.002146870607,  0.007722855246, -0.004947473069,  0.004235482847,  0.007009593238,  0.001482779273, 0.008899113382, -0.000185038203,  0.001792246492])
+
+tblite_energy = -14.716031316322
+tblite_grad = np.array([ 0.013056946638,  0.012220087955, -0.005280427646, -0.045486094608, -0.004415976567, -0.00396533549 ,  0.048171830287, -0.017066224935, 0.008731457911,  0.002643720379,  0.04463665936 ,  0.003902229154, -0.012008229343, -0.027093527389, -0.004254876433, -0.001469152115, -0.001400886207, -0.003490134853, -0.003917228229, -0.000101005297, 0.000828936619,  0.002423618986, -0.002015865917,  0.002440988244, -0.003957982075,  0.000637370233, -0.0011000525  ,  0.002200697216, -0.00447187544 ,  0.000990624562, -0.003151184629, -0.00153786792 , -0.000393965147,  0.002067671539, -0.002709050169,  0.001305264594, -0.000574614048,  0.003318162291,  0.000285290985])
 
 al_ref1 = np.array([-1.7757155656499501, 0.41717269133289314, 0.17266747524715848, -0.8173707808878601, 1.2321597777582431, -0.22073781746393153, 0.63398094133639, 1.0705448794873031, 0.09524143724184846, 1.30326648975502, -0.06546852594889685, 0.14677116123953848, 0.74933453208716, -1.4556998606273366, -0.14194169482621152, 0.48335338422854, -1.9667267082266466, 0.7805349753182684, 1.49687849607354, -2.057645559534187, -0.6491974429248816, -0.13619559134603, -1.3955100024971667, -0.7638001310782916, -2.8114902613586503, 0.5951440197039032, -0.08170130993919154, -1.57684131056852, -0.45239809008876686, 0.7805632944246784, -1.06955360222952, 2.1148665955121233, -0.7948824993588016, 1.1649469943211601, 1.9947117584848932, 0.2795447144571985, 2.35540627423872, -0.031150975356356803, 0.3969378376626185])
 al_ref2 = np.array([-1.6279869911685092, -0.0034342140936257474, -0.2282480169856277, -0.6592807481712007, 1.1333731232608644, 0.07512800164110181, 0.6576860526857882, 1.0554950746657201, 0.09599037709017776, 1.4791222895001332, -0.17065146412516238, -0.1365223618263192, 1.1708095727342684, -1.3826836662335489, 0.27962631677630023, 0.2748144419263416, -1.5850615121766884, 0.8466834333476819, 1.8148127389278228, -2.2295574136532226, 0.08651907565051031, -1.1389227162229463, -0.7856657703971301, -0.7969062822928528, -2.474237052368161, 0.3691347462263516, -0.7971755054459009, -2.013438680561835, -0.4401151013879017, 0.6902359768196382, -1.1206095098521114, 2.0925351026811234, 0.26998374956140325, 1.227973573814415, 1.955708975516411, 0.2814706324433776, 2.4092570287559942, -0.009077880283191845, -0.6667853967794906])

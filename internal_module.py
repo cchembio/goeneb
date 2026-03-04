@@ -1,5 +1,14 @@
 import numpy as np
-from numba import njit
+import logging
+
+logger = logging.getLogger(__name__)
+
+try:
+    from numba import njit
+except ImportError:
+    logger.warning("The numba module can not be imported. This way Lindh hessian generation might be very slow.")
+    def njit(func):
+        return func
 
 # Helper functions
 

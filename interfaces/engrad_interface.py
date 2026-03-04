@@ -12,6 +12,7 @@ import neb_exceptions as nex
 from . import orca_interface as orc
 from . import gaussian_interface as gss
 from . import molpro_interface as mol
+from . import tblite_interface as tbl
 from . import dummy_interface as dmm
 
 logger = logging.getLogger(__name__)
@@ -46,6 +47,10 @@ def gather_engrfunc(atomic_labels, settings, temp_workdir):
         engrfunc, engrfunc_kwargs = setup_molpro(atomic_labels,
                                                  settings,
                                                  temp_workdir)
+        
+    elif interface == 'tblite':
+        engrfunc, engrfunc_kwargs = setup_tblite(atomic_labels,
+                                                 settings)
 
     elif interface == 'dummy':
         number_of_images = settings.n_images + 2
@@ -225,6 +230,37 @@ def find_molpro_path(settings):
 
         molpath = Path(molpath)
     return molpath
+
+
+# helper functions for setting up tblite interface
+def setup_tblite(atomic_labels, settings):
+    """Set up the tblite energy and gradient calculation function with the specified user input.\\
+    Returns: 
+    - energy function
+    - energy keywords to be used with the function
+    """
+    logger = logging.getLogger(__name__)
+    logger.info('Tblite interface for EnGrad calculation selected.')
+
+    npal = settings.n_threads
+    os.environ["OMP_NUM_THREADS"] = str(npal)
+
+    engrfunc = tbl.tblite_path_engrads
+    tblite_keywords = settings.tblite_keywords
+
+    if tblite_keywords is None:
+        raise nex.NEBError('Error: tblite interface selected, but no ' +\
+                           'tblite calculation keywords specified. Make ' +\
+                           'sure to specify them in the .ini file under ' +\
+                           'the "tblite_keywords" keyword.')
+
+    engrfunc_kwargs = {'labels' : atomic_labels,
+                       'method_keywords' : tblite_keywords,
+                       'charge' : settings.charge,
+                       'spin' : settings.spin,
+                       'series_name' : 'image'}
+
+    return engrfunc, engrfunc_kwargs
 
 
 # helper function for setting up the dummy interface

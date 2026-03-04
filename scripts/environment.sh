@@ -1,16 +1,16 @@
 #! /bin/bash -l
 
 # User specified paths for python environment and NEB program path
-ENV_PATH="/path/to/neb-env/bin/activate"
-NEB_PATH="/path/to/goeneb"
+ENV_PATH="/home/lmeeder/environments/neb-env/bin/activate"
+NEB_PATH="/home/lmeeder/Programme/goeneb"
 
-if [ -z "$TMPDIR" ]; then
-    TMPDIR="/scr/${USER}"
+if [ -z "$TMP_DIR" ]; then
+    TMP_DIR="/scr/${USER}"
 fi
 
 # Temp directory
 JOB_ID="${SLURM_JOB_ID:-$$}"
-NEB_TMPDIR=${TMPDIR}/${JOB_ID}
+NEB_TMPDIR=${TMP_DIR}/${JOB_ID}
 mkdir -p ${NEB_TMPDIR}
 export NEB_TMPDIR
 
@@ -28,6 +28,8 @@ if [ -z "$MPI_PATH" ]; then
     export MPI_PATH="$(which mpirun)"
 fi
 export NEB_PATH
+
+export OMP_STACKSIZE=4G
 
 # Python environment
 source ${ENV_PATH}

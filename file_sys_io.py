@@ -27,15 +27,16 @@ def qappend(filepath, lines):
     file.close()
 
 
-def get_abs_path(rawpath):
-    return Path(os.path.abspath(rawpath))
+def get_full_path(relpath):
+    abspath = os.path.abspath(os.path.expanduser(os.path.expandvars(relpath)))
+    return Path(abspath)
 
 
 def move_dir(dir_to_move, target_dir):
     shutil.move(str(dir_to_move), str(target_dir))
 
 
-def check_if_directory(dir_path, check_rwacc=True, print_msgs=False):
+def check_directory(directory:Path, check_rwacc=True, print_msgs=False):
     """Check whether dir_path:
     - exists
     - is a directory
@@ -44,16 +45,14 @@ def check_if_directory(dir_path, check_rwacc=True, print_msgs=False):
 
     The last two are only checked when check_rwacc is True. A message is only printed if print_msgs is True.
     """
-    if not os.path.exists(dir_path):
-        msg = 'Error in file_sys_io, safe_delete_dir: ' +\
-              'could not find directory named ' + str(dir_path)
+    if not directory.exists():
+        msg = 'Could not find directory named ' + str(directory)
         if print_msgs:
             logger.error('\n %s \n', msg)
         return False
 
-    if not os.path.isdir(dir_path):
-        msg = 'Error in file_sys_io, safe_delete_dir: ' +\
-              str(dir_path) + ' is a file'
+    if not directory.is_dir():
+        msg = str(directory) + ' is not a directory'
         if print_msgs:
             logger.error('\n %s \n', msg)
         return False
@@ -62,16 +61,14 @@ def check_if_directory(dir_path, check_rwacc=True, print_msgs=False):
         # passing the first two checks is enough
         return True
 
-    if not os.access(dir_path, os.R_OK):
-        msg = 'Error in file_sys_io, safe_delete_dir: ' +\
-              'no reading access in ' + str(dir_path)
+    if not os.access(directory, os.R_OK):
+        msg = 'No reading access in ' + str(directory)
         if print_msgs:
             logger.error('\n %s \n', msg)
         return False
 
-    if not os.access(dir_path, os.W_OK):
-        msg = 'Error in file_sys_io, safe_delete_dir: ' +\
-              'no writing access in ' + str(dir_path)
+    if not os.access(directory, os.W_OK):
+        msg = 'No writing access in ' + str(directory)
         if print_msgs:
             logger.error('\n %s \n', msg)
         return False
@@ -80,26 +77,25 @@ def check_if_directory(dir_path, check_rwacc=True, print_msgs=False):
     return True
 
 
-def safe_delete_dir(dir_path, does_not_exist_ok=False):
+def safe_delete_dir(directory:Path, does_not_exist_ok=False):
     """Delete a directory and check whether it is gone."""
-    if not check_if_directory(dir_path):
+    if not check_directory(directory):
         if does_not_exist_ok is True:
-            # directory does not exist, we're done.
+            logger.debug("Directorey %s does not exist or you dont have the right access rights, skipping deletion.", directory)
             return
         else:
             # it was supposed to exist, something is wrong
-            raise NEBError('Error in file_sys_io, safe_delete_dir: ' +
-                           str(dir_path) + ' is not a valid directory.')
+            raise NEBError('Error in file_sys_io, safe_delete_dir: ' + str(directory) + ' is not a valid directory.')
 
-    shutil.rmtree(str(dir_path))
+    shutil.rmtree(directory)
 
     # dir_path should no longer be an existing directory. let's check
-    if check_if_directory(dir_path,
-                          check_rwacc=False,
-                          print_msgs=False):
+    if check_directory(directory,
+                       check_rwacc=False,
+                       print_msgs=False):
         # apparently, it somehow still exists. this is an error
         msg = '\nError in file_sys_io, safe_delete_dir: ' +\
-              'unable to delete ' + str(dir_path) + '\n'
+              'unable to delete ' + str(directory) + '\n'
         raise NEBError(msg)
 
 
@@ -107,9 +103,9 @@ def safe_create_dir(new_dir_path, clear_if_existing=False, check_rwacc=True):
     """Create a new directory. Option clear_if_existing deletes the directory if it exists."""
     if clear_if_existing:
         # check if new_dir_path already exists
-        if check_if_directory(new_dir_path,
-                              check_rwacc=False,
-                              print_msgs=False):
+        if check_directory(new_dir_path,
+                           check_rwacc=False,
+                           print_msgs=False):
             # it does. delete in order to make a new one that is empty
             safe_delete_dir(new_dir_path)
 
@@ -117,8 +113,8 @@ def safe_create_dir(new_dir_path, clear_if_existing=False, check_rwacc=True):
     os.makedirs(new_dir_path, exist_ok=True)
 
     # check if directory now exists as desired
-    if not check_if_directory(new_dir_path,
-                              check_rwacc=check_rwacc):
+    if not check_directory(new_dir_path,
+                           check_rwacc=check_rwacc):
         # it does not. this is an error
         msg = '\nError in file_sys_io, safe_create_dir: ' +\
               'unable to create or access' + str(new_dir_path) + '\n'
@@ -126,9 +122,9 @@ def safe_create_dir(new_dir_path, clear_if_existing=False, check_rwacc=True):
         raise NEBError(msg)
 
 
-def safe_delete_file(filepath, does_not_exist_ok=False):
+def safe_delete_file(filepath:Path, does_not_exist_ok=False):
     """Delete a file and check whether it is gone."""
-    if os.path.isfile(filepath):
+    if filepath.is_file():
         os.remove(filepath)
 
     elif not does_not_exist_ok:
@@ -138,7 +134,7 @@ def safe_delete_file(filepath, does_not_exist_ok=False):
                        str(filepath) + ' is not a valid filepath.')
 
     # confirm delete
-    if os.path.isfile(filepath):
+    if filepath.is_file():
         raise NEBError('Error in file_sys_io, safe_delete_file: ' +
                        str(filepath) + ' could not be removed.')
 
@@ -159,7 +155,7 @@ def conv_xyzlines(lines):
         if len(tokens) == 0:
             continue
         atom_labels.append(tokens[0])
-        for token in tokens[1:]:
+        for token in tokens[1:4]:
             coords.append(float(token))
     return atom_labels, np.array(coords)
 

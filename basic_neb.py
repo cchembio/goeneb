@@ -108,6 +108,9 @@ class BasicNEB:
                 if self.giveup_signal_func():
                     break
 
+                if self.iteration == self.maxiter:
+                    break       # not applying steps in that case
+
                 logger.info('Applying optimization steps.')
                 self.path.set_img_pvecs([pvec + step for pvec, step in zip(self.path.get_img_pvecs(), steps)])
 

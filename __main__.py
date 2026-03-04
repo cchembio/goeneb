@@ -1,5 +1,9 @@
 import argparse
 
+from logging_module import setup_logger
+
+logger = setup_logger()
+
 from neb import main
 
 def parse_args():

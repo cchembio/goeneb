@@ -1,7 +1,7 @@
 import logging
 
 import neb_exceptions as nex
-from file_sys_io import qread
+from file_sys_io import qread, get_full_path
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +73,7 @@ class Settings:
         self.orca_keywords2 = None
         self.gaussian_keywords = None
         self.molpro_keywords = None
+        self.tblite_keywords = None
 
         # cluster
         self.n_threads = 1
@@ -93,6 +94,7 @@ class Settings:
                                    'orca_keywords2',
                                    'gaussian_keywords',
                                    'molpro_keywords',
+                                   'tblite_keywords',
                                    'starttraj',
                                    'ts_guess',
                                    'start_structure',
@@ -191,11 +193,28 @@ class Settings:
         idpp_settings.stepsize = 0.1
         idpp_settings.k_const = 1
         return idpp_settings
+    
+    def get_complete_paths(self):
+        assert hasattr(self, 'workdir') and self.workdir is not None, "workdir must be set"
+
+        # Define the path settings that need to be processed
+        path_settings = ['start_structure', 'end_structure', 'starttraj', 'TS_guess']
+        for path_name in path_settings:
+            path_value = getattr(self, path_name)
+            if path_value is not None:
+                path = get_full_path(path_value)
+                setattr(self, path_name, path)
+
+                if path.exists:
+                    logger.debug(f"The path {path_name} = {str(path)} exists")
+                else:
+                    logger.error(f"The path {path_name} = {str(path)} does not exist")
+                    raise FileNotFoundError
 
     def __str__(self):
         excluded = {'allowed_keywords', 'allowed_keywords_map', 'case_sensitive_kws'}
         return "\n".join(
-            f"{key} = {value!r}" 
+            f"{key} = {value}" 
             for key, value in self.__dict__.items()
             if key not in excluded)
 

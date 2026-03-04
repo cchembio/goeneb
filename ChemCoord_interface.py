@@ -1,16 +1,28 @@
 import numpy as np
-import pandas as pd
 import logging
 
 # The chemcoord module imports numba, which produces
 # bytecode logging output on the debug level that is not useful
 logging.getLogger('numba').setLevel(logging.WARNING)
-import chemcoord as cc
-from chemcoord.exceptions import UndefinedCoordinateSystem
 
 from helper import pvec_to_crdmat, crdmat_to_pvec
 
 logger = logging.getLogger(__name__)
+
+try:
+    import chemcoord as cc
+    from chemcoord.exceptions import UndefinedCoordinateSystem
+except ImportError:
+    cc = None
+    UndefinedCoordinateSystem = None
+    logger.warning("Chemcoord could not be imported. This is important for the internal interpolation.")
+
+try:
+    import pandas as pd
+except ImportError:
+    pd = None
+    logger.warning("Pandas could not be imported. This is important for the internal interpolation.")
+
 
 def total_atom_movement(path_pvecs):
     """
@@ -27,6 +39,8 @@ def pvec_to_cartesian(labels, pvec):
     """
     Convert a pvec to the cartesian object used by chemoord.
     """
+    assert cc is not None, "chemcoord is needed for internal interpolation"
+    assert pd is not None, "pandas is needed for internal interpolation"
     coords = pvec_to_crdmat(pvec)
     frame = pd.DataFrame({'atom': labels, 'x': coords[:,0], 'y': coords[:,1], 'z': coords[:,2]})
     return cc.Cartesian(frame=frame)
@@ -38,6 +52,7 @@ def cartesian_to_pvec(cartesian):
 
 
 def pvec_to_zmat(labels, pvec, constr_table=None):
+    assert UndefinedCoordinateSystem is not None, "chemcoord is needed for internal interpolation"
     cc_cart = pvec_to_cartesian(labels, pvec)
 
     if constr_table is None:
@@ -82,6 +97,7 @@ def zmat_interpolate(start_pvec,
     Returns the interpolated images in pvec format and the construction table.
     Returns None if the z-mat construction failed.
     """
+    assert cc is not None, "chemcoord is needed for internal interpolation"
     if use_2nd_constr_table:
         zmat2, ctable = pvec_to_zmat(labels, stop_pvec)
         zmat1, ctable = pvec_to_zmat(labels, start_pvec, constr_table=ctable)

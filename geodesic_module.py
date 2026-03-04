@@ -1,10 +1,15 @@
 import numpy as np
 import logging
 
-from scipy.optimize import least_squares
-from scipy.spatial import KDTree
-
 logger = logging.getLogger(__name__)
+
+try:
+    from scipy.spatial import KDTree
+    from scipy.optimize import least_squares
+except ImportError:
+    KDTree = None
+    least_squares = None
+    logger.warning("Scipy could not be imported. This is important for the geodesic interpolation.")
 
 def interpolate_geodesic(start_pvec, 
                          end_pvec, 
@@ -79,6 +84,7 @@ def mid_point(atoms, geom1, geom2, tol=1e-2, nudge=0.01, threshold=4):
     Returns:
         Optimized mid-point which bisects the two endpoints in internal coordinates
     """
+    assert least_squares is not None, "scipy is needed for geodesic interpolation"
     # Process the initial geometries, construct coordinate system and obtain average internals
     geom1, geom2 = np.array(geom1), np.array(geom2)
     add_pair = set()
@@ -242,6 +248,7 @@ def get_bond_list(geom, atoms=None, threshold=4, min_neighbors=4, snapshots=30, 
     Returns:
         List of all the included interatomic distance pairs.
     """
+    assert KDTree is not None, 'scipy is needed for geodesic interpolation'
     # Type casting and value checks on input parameters
     geom = np.asarray(geom)
     if len(geom.shape) < 3:
@@ -524,6 +531,7 @@ class Geodesic(object):
         Returns:
             The optimized path.  This is also stored in self.path
         """
+        assert least_squares is not None, 'scipy is needed for geodesic interpolation'
         X0 = np.array(self.path[start:end]).ravel()
         if xref is None:
             xref= X0

@@ -5,7 +5,7 @@ import struct_aligner_module as sam
 import IDPP_module as idpp
 import geodesic_module as geo
 from neb_exceptions import NEBError
-from helper import interpolate_linear
+from helper import interpolate_linear, normalize
 
 logger = logging.getLogger(__name__)
 
@@ -138,43 +138,68 @@ def interpolate_path(start_pvec,
     path_pvecs = sam.align_path(path_pvecs, rot_align_mode)
     return path_pvecs
 
-def interpolate_TS(coords, energies, labels, mode='internal'):
-    """
-    Interpolate a TS structure starting from the three highest energy images. 
-    Assumes that we are already in the quadratic region of the PES.
-    Expects:
-    - coords of the whole path
-    - energies of the whole path
-    - labels of atomtypes
-    - interpolation mode
-    """
+def interpolate_TS_cubic(coords, energies, grads):
+    logger.info("Doing cubic fit to interpolate TS. Suggested by Henkelman and Jonsson.")
+    def get_parameters(V_i, V_next, F_i, F_next, R):
+        a = 2*(V_i - V_next)/R**3 - (F_i + F_next)/R**2
+        b = 3*(V_next - V_i)/R**2 + (2*F_i + F_next)/R
+        c = -F_i
+        d = V_i
+        return a,b,c,d
+
+    def max_cubic_spline(a, b, c, d, R):
+        x = np.linspace(0, R, 100)
+        y = a*x**3 + b*x**2 + c*x + d
+        return x[np.argmax(y)], np.max(y)
+    
     energies = np.array(energies)
     hei_index = np.nanargmax(energies)
+
+    if hei_index == len(energies) or hei_index == 0:
+        logger.error("HEI is one of the end images. Something went wrong.")
+
     left_coords = coords[hei_index-1]
     hei_coords = coords[hei_index]
     right_coords = coords[hei_index+1]
     left_e = energies[hei_index-1]
     hei_e = energies[hei_index]
     right_e = energies[hei_index+1]
+    left_grads = -grads[hei_index-1]    # forces instead of gradients
+    hei_grads = -grads[hei_index]
+    right_grads = -grads[hei_index+1]
 
-    ld = np.linalg.norm(left_coords-hei_coords)
-    logger.debug(f'Distance of HEI to left neighbor: {ld} A.')
-    rd = np.linalg.norm(right_coords-hei_coords)
-    logger.debug(f'Distance of HEI to right neighbor: {rd} A.')
+    # interpolate energies
+    R_left = np.linalg.norm(hei_coords - left_coords)
+    a,b,c,d = get_parameters(left_e, hei_e, np.linalg.norm(left_grads), np.linalg.norm(hei_grads), R_left)
+    s_max_left, max_energy_left = max_cubic_spline(a,b,c,d, R_left)
 
-    a = (1/(ld**2 + ld*rd)) * (left_e - hei_e + (ld/rd)*(right_e - hei_e))
-    b = 1/rd * (right_e - hei_e - a*rd**2)
-    x = -b/(2*a)
-    logger.debug(f'Quadratic equation: {a} x^2 + {b} x + {hei_e}')
-    logger.debug(f'TS guess at x = {x}')
+    R_right = np.linalg.norm(right_coords - hei_coords)
+    a,b,c,d = get_parameters(hei_e, right_e, np.linalg.norm(hei_grads), np.linalg.norm(right_grads), R_right)
+    s_max_right, max_energy_right = max_cubic_spline(a,b,c,d, R_right)
 
-    if x < 0:
-        x = np.abs(x)
-        logger.debug(f'Doing interpolation to left neighbor with fraction: {x/ld}')
-        ts_coords = do_interpolation(hei_coords, left_coords, labels, [x/ld], mode)[0]
-    elif x > 0:
-        logger.debug(f'Doing interpolation to right neighbor with fraction: {x/rd}')
-        ts_coords = do_interpolation(hei_coords, right_coords, labels, [x/rd], mode)[0]
+    if max_energy_left > max_energy_right:
+        s_max = s_max_left
+        grads1 = left_grads
+        grads2 = hei_grads
+        coords1 = left_coords
+        coords2 = hei_coords
+        R = R_left
     else:
-        ts_coords = hei_coords
-    return ts_coords
+        s_max = s_max_right
+        grads1 = hei_grads
+        grads2 = right_grads
+        coords1 = hei_coords
+        coords2 = right_coords
+        R = R_right
+
+    # modify gradients in end points
+    if hei_index == 1 and max_energy_left > max_energy_right:
+        grads1 = coords1 - coords2
+    elif hei_index == len(energies) -1 and max_energy_left <= max_energy_right:
+        grads2 = coords2 - coords1
+
+    # interpolate structures
+    a,b,c,d = get_parameters(coords1, coords2, -normalize(grads1), -normalize(grads2), R)
+    struct = a*s_max**3 + b*s_max**2 + c*s_max + d
+    return struct
+

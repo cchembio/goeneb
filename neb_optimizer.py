@@ -18,7 +18,7 @@ import hessian_module as hm
 import neb_exceptions as nex
 import logging_module as lgm
 from basic_neb import BasicNEB
-from helper import parse_index_list
+from helper import parse_index_list, project, normalize
 
 logger = logging.getLogger(__name__)
 
@@ -403,7 +403,7 @@ class NEB_Optimizer(BasicNEB):
         if max_rmsf <= Max_RMSF_tol and max_absf <= Max_AbsF_tol:
             # The relaxed NEB did converge succesfully! However, if the NEB calculation continues after this
             # we still need to apply the optimization steps anyways, so this step doesn't get forgotten
-            if self.relaxed and not self.relaxed_neb:
+            if self.relaxed and not self.relaxed_neb and (self.iteration < self.maxiter):
                 self.relaxed = False
                 self.max_rmsf = self.Max_RMSF_tol
                 self.max_absf = self.Max_AbsF_tol
@@ -484,10 +484,14 @@ class NEB_Optimizer(BasicNEB):
         """
         path_pvecs = self.path.get_img_pvecs(include_ends=True)
         energies = self.path.get_energies(include_ends=True)
+        grads = self.path.get_engrads()
+        tans = self.path.get_tanvecs()
+        par_grads = [project(grad, normalize(tan)) for grad, tan in zip(grads, tans)]
+        par_grads = [np.zeros_like(par_grads[0])] + par_grads + [np.zeros_like(par_grads[0])]
         labels = self.labels
         io.write_xyz_traj(labels,
                         path_pvecs,
-                        self.workdir / 'currenttraj.xyz',
+                        self.resultdir / 'currenttraj.xyz',
                         energies=energies)
         energies_np = np.array(energies, dtype=float)  # forces None -> np.nan
 
@@ -496,20 +500,19 @@ class NEB_Optimizer(BasicNEB):
         max_energy = energies_np[hei_index]
         io.write_xyz_file(labels, 
                           path_pvecs[hei_index], 
-                          self.workdir / 'HEI_trj.xyz',
+                          self.resultdir / 'HEI_trj.xyz',
                           mode='a',
                           energy=max_energy)
 
-        # TS_guess
         if not self.ci_user_setting:
-            ts_coords = pim.interpolate_TS(path_pvecs,
-                                        energies_np,
-                                        labels,
-                                        self.interp_mode)
+            # TS_guess cubic like HJ
+            ts_coords_hj = pim.interpolate_TS_cubic(path_pvecs,
+                                                    energies_np,
+                                                    par_grads)
             io.write_xyz_file(labels, 
-                            ts_coords, 
-                            self.workdir / 'TS_trj.xyz',
-                            mode='a')
+                              ts_coords_hj, 
+                              self.resultdir / 'TS_guess_cubic_trj.xyz',
+                              mode='a')
 
         left_barrier_kJmol = (max_energy - energies[0]) * Hartree_in_kJmol
         right_barrier_kJmol = (max_energy - energies[-1]) * Hartree_in_kJmol

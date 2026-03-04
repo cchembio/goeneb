@@ -15,6 +15,7 @@ import IDPP_module as idpp
 from neb_optimizer import NEB_Optimizer
 from logo import logo
 from interfaces.engrad_interface import gather_engrfunc
+from helper import project, normalize
 
 Hartree_in_kJmol = 2625.49963948
 
@@ -24,7 +25,7 @@ Hartree_in_kJmol = 2625.49963948
 # --------------------------------------------------------------
 
 def main(args):
-    logger = lgm.setup_logger()
+    logger = logging.getLogger(__name__)
     logger.info(logo)
 
     tempdir = None
@@ -32,7 +33,7 @@ def main(args):
 
     try:
         # gather user-given data
-        inpfile_path = get_full_path(Path(args.input_file))
+        inpfile_path = io.get_full_path(Path(args.input_file))
 
         # read the input file, overwrite if options are given in commandline
         settings = process_input_path(inpfile_path)
@@ -52,17 +53,20 @@ def main(args):
 
         logger.debug('Chosen settings:\n%s', settings)
 
-        # find/generate workdir, where the results should be stored
-        workdir = find_workdir(inpfile_path)
+        # find/generate resultdir, where the results should be stored
+        workdir, resultdir = find_workdir(inpfile_path)
+        settings.resultdir = resultdir
+        settings.workdir = workdir
 
         # find/generate tempdir, where temporary files should be stored
         tempdir = find_tempdir(settings)
 
         # find/generate the starting path
+        settings.get_complete_paths()
         labels, starting_path = produce_starting_path(settings)
 
         # save the starting path into the workdir
-        io.write_xyz_traj(labels, starting_path, workdir / 'starttraj.xyz')
+        io.write_xyz_traj(labels, starting_path, resultdir / 'starttraj.xyz')
 
         # if trajtest is selected, only the starting path should be printed.
         # in that case, we're already done.
@@ -78,7 +82,7 @@ def main(args):
                                                     tempdir)
 
         # prepare the logger for the progress of the (NEB) optimization
-        logfile_path = workdir / 'optlog.csv'
+        logfile_path = resultdir / 'optlog.csv'
         settings.logfile_path = logfile_path
 
         # now we can generate the NEBPath object, which will hold the
@@ -93,7 +97,6 @@ def main(args):
         # do the actual NEB optimization
         # ------------------------------
         settings.start_time = time.time()
-        settings.workdir = workdir 
 
         optimizer = NEB_Optimizer(nebpath, settings)
         nebpath, return_state, iterations = optimizer.do_opt_loop(engrfunc, engrfunc_kwargs)
@@ -107,7 +110,7 @@ def main(args):
                 logger.warning('\n\nWarning: the NEB did not converge, it just ' +
                                 'reached the maximum number of iterations! Be ' +
                                 'careful with the results!\n\n')
-            do_end_of_opt_printout(optimizer, workdir)
+            do_end_of_opt_printout(optimizer, resultdir)
             return
 
         # if the previous stage of optimization didn't converge
@@ -137,7 +140,7 @@ def main(args):
                             'reached the maximum number of iterations! Be ' +
                             'careful with the results!\n\n')
 
-        do_end_of_opt_printout(optimizer, workdir)
+        do_end_of_opt_printout(optimizer, resultdir)
 
         return
 
@@ -159,7 +162,7 @@ def main(args):
             logger.info('Temporary files deleted.')
 
 
-def do_end_of_opt_printout(optimizer, workdir):
+def do_end_of_opt_printout(optimizer, resultdir):
     """Do final printout of the optimization stats. Also save the final structures of the path.
     - Iteration Information
     - Final trajectory
@@ -174,8 +177,12 @@ def do_end_of_opt_printout(optimizer, workdir):
     nebpath = optimizer.path
     final_path = nebpath.get_img_pvecs(include_ends=True)
     final_energies = np.array(nebpath.get_energies(include_ends=True))
+    grads = nebpath.get_engrads()
+    tans = nebpath.get_tanvecs()
+    par_grads = [project(grad, normalize(tan)) for grad, tan in zip(grads, tans)]
+    par_grads = [np.zeros_like(par_grads[0])] + par_grads + [np.zeros_like(par_grads[0])]
     labels = nebpath.get_labels()
-    finaltraj_filepath = workdir / 'finaltraj.xyz'
+    finaltraj_filepath = resultdir / 'finaltraj.xyz'
     io.write_xyz_traj(labels,
                       final_path,
                       finaltraj_filepath,
@@ -187,7 +194,7 @@ def do_end_of_opt_printout(optimizer, workdir):
     hei_index = np.nanargmax(final_energies)
     hei_coords = final_path[hei_index]
     hei_energy = final_energies[hei_index]
-    hei_filepath = workdir / 'HEI.xyz'
+    hei_filepath = resultdir / 'HEI.xyz'
     io.write_xyz_file(labels,
                       hei_coords,
                       hei_filepath,
@@ -195,15 +202,15 @@ def do_end_of_opt_printout(optimizer, workdir):
 
     logger.info('Highest Energy Image printed under %s', str(hei_filepath))
 
-    # TS Guess (only when no climbing image)
+    # TS Guess quadratic
     if not optimizer.climbing_image:
-        ts_guess_filepath = workdir / 'TS_guess.xyz'
-        ts_coords = pim.interpolate_TS(final_path, final_energies, labels, optimizer.interp_mode)
+        ts_guess_filepath = resultdir / 'TS_guess_cubic.xyz'
+        ts_coords = pim.interpolate_TS_cubic(final_path, final_energies, par_grads)
         io.write_xyz_file(labels,
-                        ts_coords, 
-                        ts_guess_filepath)
+                          ts_coords, 
+                          ts_guess_filepath)
 
-        logger.info('Interpolated TS Guess structure printed under %s', str(ts_guess_filepath))
+        logger.info('Cubic interpolated TS Guess structure printed under %s', str(ts_guess_filepath))
 
 
 # the following section contains helper functions for gathering starting
@@ -358,18 +365,18 @@ def generate_from_ends_and_TS(settings):
 # -------------------------------------------------------------
 
 
-def process_input_path(inpfile_path):
+def process_input_path(inpfile_path:Path):
     """
     Get the input parameters either from the input file or from the work directory. Returns a settings object.
     """
     logger = logging.getLogger(__name__)
 
     # check if inpfile_path is an actual file, or if it's a directory
-    if os.path.isfile(inpfile_path):
+    if inpfile_path.is_file():
         # load the input file normally
         settings = conf.Settings(inpfile_path)
 
-    elif os.path.isdir(inpfile_path):
+    elif inpfile_path.is_dir():
         # The given path is the workdir
         logger.warning('Warning: directory was given as argument in program call. ' +
                        'This requires the directory to include all nessecary files in the ' +
@@ -383,20 +390,19 @@ def process_input_path(inpfile_path):
     return settings
 
 
-def process_workdir(wdirpath):
+def process_workdir(workdir:Path):
     """
     Sort all nessecary files given in the work directory and read the input file.
     Returns a settings object.
     """
     logger = logging.getLogger(__name__)
-    contents = list(os.listdir(wdirpath))
 
     # try to find ini file
-    inifiles = [item for item in contents if item.endswith('.ini')]
+    inifiles = list(workdir.glob("*.ini"))
     if len(inifiles) != 1:
-        raise nex.NEBError('Error: ' + str(wdirpath) + ' is not a valid' +
+        raise nex.NEBError('Error: ' + str(workdir) + ' is not a valid' +
                            ' workdir. It must contain exactly one ini file.')
-    inipath = wdirpath / inifiles[0]
+    inipath = workdir / inifiles[0]
 
     # try to read the ini, skipping the '[options]' line at the start
     settings = conf.Settings(inipath)
@@ -414,45 +420,44 @@ def process_workdir(wdirpath):
         # all xyz files need to be automatically read and sorted
         logger.info('Structures are not specified in input-file. ' +
                     'The xyz-files are automatically sorted.')
-        xyz_filepaths = [wdirpath / name for name in contents
-                         if name.endswith('.xyz')]
+        xyz_files = list(workdir.glob("*.xyz"))
 
-        one = [filepath for filepath in xyz_filepaths if "1" in filepath.name]
-        two = [filepath for filepath in xyz_filepaths if "2" in filepath.name]
-        ts = [filepath for filepath in xyz_filepaths if "TS" in filepath.name]
+        one = [filepath for filepath in xyz_files if "1" in filepath.name]
+        two = [filepath for filepath in xyz_files if "2" in filepath.name]
+        ts = [filepath for filepath in xyz_files if "TS" in filepath.name]
 
         if (len(one) != 1) or (len(two) != 1) or (len(ts) > 1):
             logger.warning('It was not clear what structure is supposed to be ' +
                            'start, end and TS structure. ' +
                            'Now its sorted alphabetically. Have better names.\n' +
                            '(Prefaribly *1.xyz, *2.xyz and *TS.xyz)')
-            xyz_filepaths.sort()
+            xyz_files.sort()
 
             # Remove TS guess from xyz_filepaths
             if settings.TS_guess is not None:
-                TS_path = Path(settings.TS_guess)
-                xyz_filepaths = [filepath for filepath in xyz_filepaths
-                                 if not os.path.samefile(filepath, TS_path)]
+                TS_path = settings.TS_guess
+                xyz_files = [filepath for filepath in xyz_files
+                             if not filepath.samefile(TS_path)]
 
             # we should be left with exactly two xyz files in case of NEB
-            if len(xyz_filepaths) != 2:
-                raise nex.NEBError('Error: ' + str(wdirpath) + ' is not a valid' +
+            if len(xyz_files) != 2:
+                raise nex.NEBError('Error: ' + str(workdir) + ' is not a valid' +
                                 ' workdir. There must be two xyz files for' +
                                 ' the two end structures.')
 
             if settings.start_structure is None:
-                settings.start_structure = str(xyz_filepaths[0])
+                settings.start_structure = xyz_files[0]
             if (settings.end_structure is None):
-                settings.end_structure = str(xyz_filepaths[1])
+                settings.end_structure = xyz_files[1]
 
         else:
             # Overwrite only if necessary
             if settings.start_structure is None:
-                settings.start_structure = str(one[0])
+                settings.start_structure = one[0]
             if settings.end_structure is None:
-                settings.end_structure = str(two[0])
+                settings.end_structure = two[0]
             if (settings.TS_guess is None) and (len(ts) == 1):
-                settings.TS_guess =  str(ts[0])
+                settings.TS_guess =  ts[0]
 
         logger.info('Start structure set to: %s', settings.start_structure)
         logger.info('End structure set to: %s', settings.end_structure)
@@ -465,20 +470,20 @@ def find_workdir(inpfile_path:Path):
     """Get the path of the work directory (the results folder)."""
     logger = logging.getLogger(__name__)
     if inpfile_path.is_dir():
-        jobdir = inpfile_path
+        workdir = inpfile_path
     elif inpfile_path.is_file():
-        jobdir = inpfile_path.parent
+        workdir = inpfile_path.parent
 
     # make sure to get the full path
-    jobdir = get_full_path(jobdir)
+    workdir = io.get_full_path(workdir)
 
     # in this directory, create a results folder
-    folder_name = find_resultfolder_name(jobdir)
-    workdir = jobdir / folder_name
+    folder_name = find_resultfolder_name(workdir)
+    resultdir = workdir / folder_name
 
     # check if this directory can be created and accessed properly
     try:
-        io.safe_create_dir(workdir)
+        io.safe_create_dir(resultdir)
 
     except nex.NEBError:
         logger.error('Error when trying to access job directory. ' +
@@ -487,20 +492,20 @@ def find_workdir(inpfile_path:Path):
         raise
 
     # the jobdir was successfully found and/or created.
-    return workdir
+    return workdir, resultdir
 
 
-def find_resultfolder_name(target_dir):
+def find_resultfolder_name(workdir:Path):
     """Gets the lowest number results folder that does not exist yet."""
     # first, find any existing results folders
-    if not os.path.isdir(target_dir / 'results'):
+    if not (workdir / 'results').is_dir():
         return 'results'
 
     folder_nr = 0
     while True:
         folder_nr += 1
         folder_name = 'results' + str(folder_nr)
-        if not os.path.exists(target_dir / folder_name):
+        if not (workdir / folder_name).exists():
             return folder_name
 
 
@@ -510,7 +515,7 @@ def find_tempdir(settings):
     logger = logging.getLogger(__name__)
     if settings.tempdir is not None:
         logger.info('Using tempdir specified in input file.')
-        tempdir = Path(settings.tempdir)
+        tempdir = settings.tempdir
 
     else:
         tempdir = os.getenv('NEB_TMPDIR')
@@ -522,10 +527,10 @@ def find_tempdir(settings):
         tempdir = Path(tempdir)
 
     # make sure to get the full path
-    tempdir = get_full_path(tempdir)
+    tempdir = io.get_full_path(tempdir)
 
     # check if this directory can be accessed properly
-    if not io.check_if_directory(tempdir):
+    if not io.check_directory(tempdir):
         raise nex.NEBError('Error when trying to access temporary ' +
                            'files directory. See message above. ' +
                            'Make sure you set the tempdir setting ' +
@@ -533,9 +538,9 @@ def find_tempdir(settings):
                            'variable correctly.')
 
     # generate a folder in the directory for our job
-    if len(os.listdir(tempdir)) > 0:
+    if any(tempdir.iterdir()):
         logger.warning('The given temp dir is not empty, a new directory will be created inside.')
-        job_id = os.environ.get('SLURM_JOB_ID')
+        job_id = os.getenv('SLURM_JOB_ID')
         if job_id is None:
             job_id = time.strftime('%Y%m%d_%H%M%S')
         tempdir = tempdir / job_id
@@ -543,8 +548,3 @@ def find_tempdir(settings):
 
     logger.info('Temporary files stored under: \n' + str(tempdir))
     return tempdir
-
-
-def get_full_path(relpath):
-    abspath = os.path.abspath(os.path.expanduser(os.path.expandvars(relpath)))
-    return Path(abspath)

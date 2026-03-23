@@ -4,27 +4,24 @@ import numpy as np
 import logging
 
 from pathlib import Path
-from neb_exceptions import NEBError
+from neb_exceptions import ParsingError
 
 logger = logging.getLogger(__name__)
 
 
 def qwrite(filepath, text):
-    file = open(filepath, 'w')
-    file.write(text)
-    file.close()
+    with open(filepath, 'w') as file:
+        file.write(text)
 
 
 def qread(filepath):
-    file = open(filepath, 'r')
-    lines = file.readlines()
-    file.close()
+    with open(filepath, 'r') as file:
+        lines = file.readlines()
     return lines
 
 def qappend(filepath, lines):
-    file = open(filepath, 'a')
-    file.writelines(lines)
-    file.close()
+    with open(filepath, 'a') as file:
+        file.writelines(lines)
 
 
 def get_full_path(relpath):
@@ -85,7 +82,7 @@ def safe_delete_dir(directory:Path, does_not_exist_ok=False):
             return
         else:
             # it was supposed to exist, something is wrong
-            raise NEBError('Error in file_sys_io, safe_delete_dir: ' + str(directory) + ' is not a valid directory.')
+            raise NotADirectoryError('Error in file_sys_io, safe_delete_dir: ' + str(directory) + ' is not a valid directory.')
 
     shutil.rmtree(directory)
 
@@ -96,7 +93,7 @@ def safe_delete_dir(directory:Path, does_not_exist_ok=False):
         # apparently, it somehow still exists. this is an error
         msg = '\nError in file_sys_io, safe_delete_dir: ' +\
               'unable to delete ' + str(directory) + '\n'
-        raise NEBError(msg)
+        raise OSError(msg)
 
 
 def safe_create_dir(new_dir_path, clear_if_existing=False, check_rwacc=True):
@@ -119,7 +116,7 @@ def safe_create_dir(new_dir_path, clear_if_existing=False, check_rwacc=True):
         msg = '\nError in file_sys_io, safe_create_dir: ' +\
               'unable to create or access' + str(new_dir_path) + '\n'
               
-        raise NEBError(msg)
+        raise OSError(msg)
 
 
 def safe_delete_file(filepath:Path, does_not_exist_ok=False):
@@ -130,12 +127,12 @@ def safe_delete_file(filepath:Path, does_not_exist_ok=False):
     elif not does_not_exist_ok:
         # 'filepath' did not exist, and the function wasn't told
         # that it not existing was not ok
-        raise NEBError('Error in file_sys_io, safe_delete_file: ' +
+        raise FileNotFoundError('Error in file_sys_io, safe_delete_file: ' +
                        str(filepath) + ' is not a valid filepath.')
 
     # confirm delete
     if filepath.is_file():
-        raise NEBError('Error in file_sys_io, safe_delete_file: ' +
+        raise OSError('Error in file_sys_io, safe_delete_file: ' +
                        str(filepath) + ' could not be removed.')
 
 
@@ -240,9 +237,9 @@ def read_xyz_traj(filepath):
         if atom_labels is None:
             atom_labels = newlabels
         elif not atom_labels == newlabels:
-            raise NEBError('Invalid xyz trajectory file: ' + str(filepath))
+            raise ParsingError('Invalid xyz trajectory file: ' + str(filepath))
         if len(newpvec) != len(atom_labels) * 3:
-            raise NEBError('Invalid xyz trajectory file: ' + str(filepath))
+            raise ParsingError('Invalid xyz trajectory file: ' + str(filepath))
         posvecs.append(newpvec)
 
     return atom_labels, posvecs

@@ -53,14 +53,29 @@ The GöNEB code uses the framework of the [Nudged Elastic Band](https://theory.c
    ```
    need to be changed to the full paths of the python environment and the GöNEB program.
 
-> [!WARNING]
-> The `environment.sh` expects the executable of the quantum chemistry program you are planning to use (ORCA, Molpro, Gaussian) to be in the `PATH`. Either permanently, or e.g. by loading the module. If this is not the case, the path to the program needs to be specified here.
+   **Temporary files**<br>
+   The `environment.sh` script also takes care of creating a temporary directory. By default this `NEB_TMPDIR` is created inside the folder specified by the environment variable `TMP_DIR`. 
+
+   > [!WARNING]
+   > Please make sure that `TMP_DIR` is either already set on your system, or that you are happy with its default value (`"/scr/${USER}"`).
+
+   **Executables**<br>
+   If you plan on using an external program for the energies and gradients (ORCA, Gaussian, Molpro), the location of the executable must be exported. 
+
+   > [!NOTE]
+   > The `environment.sh` expects the executable of the quantum chemistry program you are planning to use (ORCA, Molpro, Gaussian) to be in the `PATH`. Either permanently, or e.g. by loading the module. If this is not the case, the path to the program needs to be specified here.
 
 ---
 
 4. **Test your installation**
 
-   The `scripts/test_NEB.sh` can now be used to start the test module (`testing_module.py`). It tests all the energy calculation interfaces (ORCA, Molpro, Gaussian) and checks whether the calculated values for energies and gradients are similar to the values calculated on our system.
+   The `scripts/test_NEB.sh` can now be used to start the test module (`testing_module.py`).
+   
+   ```bash
+   bash path/to/goeneb/scripts/test_NEB.sh
+   ```
+
+    It tests all the energy calculation interfaces (ORCA, Molpro, Gaussian and tblite) and checks whether the calculated values for energies and gradients are similar to the values calculated on our system.
 
    Furthermore, it runs the important functions from the NEB routine together with the dummy potential and tests whether all functions return the correct values. The tested functions are:
    - Alignment
@@ -98,6 +113,10 @@ The GöNEB code uses the framework of the [Nudged Elastic Band](https://theory.c
    
    Run the `scripts/run_NEB.sh`. This sets up the environment, runs the program and then deletes the temporary files.
 
+   ```bash
+   bash path/to/goeneb/scripts/run_NEB.sh
+   ```
+
 ---
 
 The program will produce:
@@ -109,7 +128,7 @@ The program will produce:
     - `finaltraj.xyz`: The final trajectory (not necessarily converged)
     - `optlog.csv`: A csv file with different properties for tracking the calculation that can be visualized with the `optplot.py` program
     - `HEI.xyz` and `HEI_trj.xyz`: The highest energy image and its trajectory over the course of the NEB optimization
-    - `TS_guess.xyz` and `TS_trj.xyz`: A linear interpolation of the images with the highest energy, that should be closest to the actual TS and its trajectory over the course of the NEB optimization
+    - `TS_guess_cubic.xyz` and `TS_guess_cubic_trj.xyz`: A [cubic interpolation](https://doi.org/10.1063/1.1323224) of the images with the highest energy, that should be closest to the actual TS, and its trajectory over the course of the NEB optimization.
 
 ---
 
@@ -128,17 +147,17 @@ All keywords are explained in the following tables, default values are printed *
 ## Initial Set-up and interpolation
 | Keyword  | Options  | Explanation |
 |----------|----------|----------|
-| start_structure | `path-to/struct.xyz` | The start structure, only explicitly needed, if the input is only this file, not the whole directory. |
-| end_structure | `path-to/struct.xyz` | The start structure, only explicitly needed, if the input is only this file, not the whole directory. |
-| TS_guess | **None**<br>`path-to/struct.xyz` | The TS structure, will be included in initial the interpolation. |
-| starttraj | **None**<br>`path-to/traj.xyz` | The file with the starting path, from where the NEB should be started. None means, a starting path is generated. |
+| start_structure | `path-to/struct.xyz` | The start structure, only explicitly needed, if the input is only this file, not the whole directory. Can be a relative path. |
+| end_structure | `path-to/struct.xyz` | The start structure, only explicitly needed, if the input is only this file, not the whole directory. Can be a relative path.|
+| TS_guess | **None**<br>`path-to/struct.xyz` | The TS structure, will be included in initial the interpolation. Can be a relative path.|
+| starttraj | **None**<br>`path-to/traj.xyz` | The file with the starting path, from where the NEB should be started. None means, a starting path is generated. Can be a relative path.|
 | n_images | **default: 11** <br>integer $>$ 0 | Number of interpolation images. The total number of images (including ends) will be `n_images + 2`|
 | interp_mode | **internal**<br>cartesian<br>geodesic | How the initial path is created. Internal uses the [z-matrix](https://doi.org/10.1002/jcc.27029) from the `ChemCoord`-package, [geodesic](https://doi.org/10.1063/1.5090303) uses the code by Zhu et.al. |
 |trajtest | **False**<br>True | Whether to stop after the initial trajectory has been created. |
 | charge | **default: 0**<br>any integer | The charge of the system.|
 |spin| **default: 1**<br>any integer | The spin of the system.|
 |failed_img_tol_percent |  **default: 1.0**<br>float between 0 and 1| The maximum fraction of images that can have failed calculations before the NEB aborts. |
-| rot_align_mode | **pairwise**<br>single_reference | How the rotation is removed from the initial path. Rotation is removed via Kabsch algorithm, either pairwise to the neighboring image, or single reference to the start structure. |
+| rot_align_mode | **pairwise**<br>single_reference<br>None | How the rotation is removed from the initial path. Rotation is removed via Kabsch algorithm, either pairwise to the neighboring image, or single reference to the start structure. |
 | remove_gradtrans | **True**<br>False | Whether or not translations are included in the calculation of the NEB-gradient.|
 | remove_gradrot | **False**<br>True |Whether or not rotations are included in the calculation of the NEB-gradient. |
 | verbose | debug<br>**info**<br>warning<br>error<br>critical | The logging level (levels from the logging module). In how much detail should `output.log` be written.
@@ -155,9 +174,9 @@ All keywords are explained in the following tables, default values are printed *
 ## Interface selection
 | Keyword  | Options  | Explanation |
 |----------|----------|----------|
-| interface | orca<br>gaussian<br>molpro<br>dummy | What program should be used for the energy calculation. Dummy is a fast to calculate, non-chemical surface. Only for debugging. |
+| interface | orca<br>gaussian<br>molpro<br>tblite<br>dummy | What program should be used for the energy calculation. Dummy is a fast to calculate, non-chemical surface. Only for debugging. |
 | gaussian_path<br>molpro_path<br>orca_path | **None**<br>`path-to/program` | This will override the GAUSS_EXE, MOL_EXE or ORCA_EXE environment variables used normally by the program. |
-| gaussian_keywords<br>molpro_keywords<br>orca_keywords<br>orca_keywords2 | **None**<br> Any valid combination of keywords for the chosen interface | Gaussian: 'force' keyword is added automatically<br>Molpro: 'SET,CHARGE=...', 'SET,SPIN=...' and 'force' are added automatically<br>ORCA: 'NoAutoStart EnGrad Angs' is added automatically, second line can be added with orca_keywords2 |
+| gaussian_keywords<br>molpro_keywords<br>tblite_keywords<br>orca_keywords<br>orca_keywords2 | **None**<br> Any valid combination of keywords for the chosen interface | **Gaussian**: 'force' keyword is added automatically<br>**Molpro**: 'SET,CHARGE=...', 'SET,SPIN=...' and 'force' are added automatically<br>**ORCA**: 'NoAutoStart EnGrad Angs' is added automatically, second line can be added with orca_keywords2 |
 | memory | **default: 10000**<br>any integer | Memory keyword, needed for Molpro and Gaussian.<br> MOLPRO: memory in MW, remember: this is assigned to each core.<br>GAUSSIAN: memory in MB, remember: this is the total memory |
 |n_threads|**default: 1**<br>any integer | The cores used for parallelizing the energy calculation. **Has to be the same as the number of cores specified in the slurm file!** |
 

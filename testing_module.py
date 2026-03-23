@@ -3,6 +3,7 @@ import logging
 from pathlib import Path
 import numpy as np
 import time
+import argparse
 
 from logging_module import setup_logger
 
@@ -20,6 +21,7 @@ from IDPP_module import do_IDPP_opt_pass
 from neb_path import NEBPath
 from neb_optimizer import NEB_Optimizer
 from neb_configparse import Settings
+import neb_exceptions as nex
 
 np.set_printoptions(precision=12)
 
@@ -28,6 +30,18 @@ def main():
     logger.info('\n\n    Test module of the GöNEB started.\n    All relevant functions of the ' +
                 'NEB are tested and compared with reference values\n    to ensure ' + 
                 'your set up is working as expected.\n\n')
+
+    parser = argparse.ArgumentParser(description="Parameters for testing module")
+    parser.add_argument('-v', '--verbose', action='store_true', help='Print energies and gradients.')
+    parser.add_argument('-vv', '--veryverbose', action='store_true', help='Activate logging for background processes.')
+    parser.add_argument('-s', '--skip', action='store_true', help='Skip the interface testing.')
+    args = parser.parse_args()
+
+    if args.verbose:
+        logger.setLevel(logging.DEBUG)
+    if args.veryverbose:
+        logger.setLevel(logging.DEBUG)
+        main_logger.setLevel(logging.INFO)
 
     # Get reference structure
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -39,10 +53,11 @@ def main():
     # Test the interfaces
     logger.info('')
     logger.info('INTERFACES')
-    test_orca(labels, pvec, tempdir)
-    test_molpro(labels, pvec, tempdir)
-    test_gaussian(labels, pvec, tempdir)
-    test_tblite(labels, pvec, tempdir)
+    if not args.skip:
+        test_orca(labels, pvec, tempdir)
+        test_molpro(labels, pvec, tempdir)
+        test_gaussian(labels, pvec, tempdir)
+        test_tblite(labels, pvec, tempdir)
 
     filepath = os.path.join(script_dir, 'testjobs/pentadiene-2.xyz')
     labels, pvec2 = read_xyz_file(filepath)
@@ -68,14 +83,14 @@ def main():
     logger.info('')
     logger.info('You should get CHECK for all tests concluded in this test module (except geodesic). ' + 
                 'If this is not the case, you are not working with the same ' +
-                'functionality as the developers! You need to figure out the reason why.\n' +
-                '1. Set the testing_module logger to debug to print the compared values. ' + 
-                'Compare them to the hard coded reference vectors and values.\n' + 
-                '2. Set the global logger to debug to figure out what is happening in the background.\n' +
-                '3. See if you made any changes to the code and how they affect the program.')
-
-
-
+                'functionality as the developers! You need to figure out the reason why.\n\n' +
+                '1. Did you set the correct environment variables for all external programs you ' + 
+                'want to use (ORCA_EXE, MOL_EXE, GAUSS_EXE and MPI_PATH in the case of ORCA) ?\n' + 
+                '2. Are you running GöNEB in the correct python virtual environment?\n' + 
+                '3. Did you install all the required python modules (including tblite if you are planning on using xTB)?\n' +
+                '4. Run this testing module with the flag -v or --verbose to get the caluclated values.\n' + 
+                '5. Run this testing module with the flag -vv or --veryverbose to activate the output for all background activities.\n\n' + 
+                'If you can not detect the problem this way consider asking your system admin for help and feel free to contact the developers.\n')
 
 
 
@@ -223,8 +238,9 @@ def test_interpolation(start_pvec, end_pvec, labels, mode):
             logger.info('Geodesic code is non-deterministic.')
             label = ' '.join([mode, 'rmsd']).upper()
             logger.info(f'{label:12}:                                        |   {rmsd:+8.4e}')
-    except (ImportError, AssertionError):
+    except (ImportError, AssertionError) as e:
         logger.warning(f'{mode.upper():12}:                                         |   NOT TESTED')
+        logger.warning(e)
         logger.warning(f"{mode} test failed due to import problems")
     except Exception as e:
         logger.error(f'{mode.upper():12}:                                         |   ERROR')
@@ -314,7 +330,8 @@ def test_nebgrad(labels, start_pvec, end_pvec):
 def test_orca(atomic_labels, pvec, temp_workdir):
     logger = logging.getLogger(__name__)
     logger.info('-----  ORCA           -----')
-    logger.info('Reference energies and gradients calculated on HF-3c with Orca 6.1.1')
+    logger.info('Reference energies and gradients calculated on HF-3c with Orca 6.1.1.\n' +
+                'If you are using a different version the values might be slightly different.')
     try:
         nodes = os.getenv('SLURM_NTASKS_PER_NODE', os.getenv('NUM_THREADS', 1))
         settings = Settings()
@@ -322,21 +339,20 @@ def test_orca(atomic_labels, pvec, temp_workdir):
         settings.orca_keywords = 'HF-3c'
         settings.n_threads = nodes
 
-        if os.getenv('ORCA_EXE') is not None:
-            engrfunc, engrfunc_kwargs = gather_engrfunc(atomic_labels, 
-                                                        settings, 
-                                                        temp_workdir)
-            energy, engrad = engrfunc([pvec], **engrfunc_kwargs)
-            logger.debug(energy)
-            logger.debug(list(engrad))
-            error, close1 = check_value(energy[0], orca_energy)
-            logger.info(f'ORCA Energy:                     Error: {error:+8.4e}   |   {bool2msg(close1)}')
-            error, close2 = check_vector(engrad, orca_grad)
-            logger.info(f'ORCA Gradient:                   Error: {error:+8.4e}   |   {bool2msg(close2)}')
-            logger.info(f'ORCA INTERFACE:                                       |   {bool2msg((close1 and close2))}')
-        else:
-            logger.warning(f'ORCA INTERFACE:                                       |   NOT TESTED')
-            logger.warning('ORCA_EXE environment variable was not set.')
+        engrfunc, engrfunc_kwargs = gather_engrfunc(atomic_labels, 
+                                                    settings, 
+                                                    temp_workdir)
+        energy, engrad = engrfunc([pvec], **engrfunc_kwargs)
+        logger.debug(energy)
+        logger.debug(list(engrad))
+        error, close1 = check_value(energy[0], orca_energy)
+        logger.info(f'ORCA Energy:                     Error: {error:+8.4e}   |   {bool2msg(close1)}')
+        error, close2 = check_vector(engrad, orca_grad)
+        logger.info(f'ORCA Gradient:                   Error: {error:+8.4e}   |   {bool2msg(close2)}')
+        logger.info(f'ORCA INTERFACE:                                       |   {bool2msg((close1 and close2))}')
+    except nex.MissingEnvironmentVariable:
+        logger.warning(f'ORCA INTERFACE:                                       |   NOT TESTED')
+        logger.warning('ORCA_EXE environment variable was not set.')
     except Exception as e:
         logger.error(f'ORCA INTERFACE:                                       |   ERROR')
         logger.error("ORCA test failed due to unexpected exception", exc_info=e)
@@ -346,7 +362,8 @@ def test_orca(atomic_labels, pvec, temp_workdir):
 def test_molpro(atomic_labels, pvec, temp_workdir):
     logger = logging.getLogger(__name__)
     logger.info('-----  MOLPRO         -----')
-    logger.info('Reference energies and gradients calculated on hf basis=3-21G with Molpro 2025.2')
+    logger.info('Reference energies and gradients calculated on hf basis=3-21G with Molpro 2025.2.\n' + 
+                'If you are using a different version the values might be slightly different.')
     try:
         nodes = os.getenv('SLURM_NTASKS_PER_NODE', os.getenv('NUM_THREADS', 1))
         settings = Settings()
@@ -355,21 +372,20 @@ def test_molpro(atomic_labels, pvec, temp_workdir):
         settings.memory = 29000
         settings.n_threads = nodes
 
-        if os.getenv('MOL_EXE') is not None:
-            engrfunc, engrfunc_kwargs = gather_engrfunc(atomic_labels, 
-                                                        settings, 
-                                                        temp_workdir)
-            energy, engrad = engrfunc([pvec], **engrfunc_kwargs)
-            logger.debug(energy)
-            logger.debug(list(engrad))
-            error, close1 = check_value(energy[0], molpro_energy)
-            logger.info(f'Molpro Energy:                   Error: {error:+8.4e}   |   {bool2msg(close1)}')
-            error, close2 = check_vector(engrad, molpro_grad)
-            logger.info(f'Molpro Gradient:                 Error: {error:+8.4e}   |   {bool2msg(close2)}')
-            logger.info(f'MOLPRO INTERFACE:                                     |   {bool2msg((close1 and close2))}')
-        else:
-            logger.warning(f'MOLPRO INTERFACE:                                     |   NOT TESTED')
-            logger.warning('MOL_EXE environment variable was not set.')
+        engrfunc, engrfunc_kwargs = gather_engrfunc(atomic_labels, 
+                                                    settings, 
+                                                    temp_workdir)
+        energy, engrad = engrfunc([pvec], **engrfunc_kwargs)
+        logger.debug(energy)
+        logger.debug(list(engrad))
+        error, close1 = check_value(energy[0], molpro_energy)
+        logger.info(f'Molpro Energy:                   Error: {error:+8.4e}   |   {bool2msg(close1)}')
+        error, close2 = check_vector(engrad, molpro_grad)
+        logger.info(f'Molpro Gradient:                 Error: {error:+8.4e}   |   {bool2msg(close2)}')
+        logger.info(f'MOLPRO INTERFACE:                                     |   {bool2msg((close1 and close2))}')
+    except nex.MissingEnvironmentVariable:
+        logger.warning(f'MOLPRO INTERFACE:                                     |   NOT TESTED')
+        logger.warning('MOL_EXE environment variable was not set.')
     except Exception as e:
         logger.error(f'MOLPRO INTERFACE:                                     |   ERROR')
         logger.error("MOLPRO test failed due to unexpected exception", exc_info=e)
@@ -380,7 +396,8 @@ def test_molpro(atomic_labels, pvec, temp_workdir):
 def test_gaussian(atomic_labels, pvec, temp_workdir):
     logger = logging.getLogger(__name__)
     logger.info('-----  GAUSSIAN       -----')
-    logger.info('Reference energies and gradients calculated on HF/3-21G with Gaussian 16')
+    logger.info('Reference energies and gradients calculated on HF/3-21G with Gaussian 16.\n' +
+                'If you are using a different version the values might be slightly different.')
     try:
         nodes = os.getenv('SLURM_NTASKS_PER_NODE', os.getenv('NUM_THREADS', 1))
         settings = Settings()
@@ -389,21 +406,20 @@ def test_gaussian(atomic_labels, pvec, temp_workdir):
         settings.memory = 10000
         settings.n_threads = nodes
 
-        if os.getenv('GAUSS_EXE') is not None:
-            engrfunc, engrfunc_kwargs = gather_engrfunc(atomic_labels, 
-                                                        settings, 
-                                                        temp_workdir)
-            energy, engrad = engrfunc([pvec], **engrfunc_kwargs)
-            logger.debug(energy)
-            logger.debug(list(engrad))
-            error, close1 = check_value(energy[0], gauss_energy)
-            logger.info(f'Gaussian Energy:                 Error: {error:+8.4e}   |   {bool2msg(close1)}')
-            error, close2 = check_vector(engrad, gauss_grad)
-            logger.info(f'Gaussian Gradient:               Error: {error:+8.4e}   |   {bool2msg(close2)}')
-            logger.info(f'GAUSSIAN INTERFACE:                                   |   {bool2msg((close1 and close2))}')
-        else:
-            logger.warning(f'GAUSSIAN INTERFACE:                                   |   NOT TESTED')
-            logger.warning('GAUSS_EXE environment variable was not set.')
+        engrfunc, engrfunc_kwargs = gather_engrfunc(atomic_labels, 
+                                                    settings, 
+                                                    temp_workdir)
+        energy, engrad = engrfunc([pvec], **engrfunc_kwargs)
+        logger.debug(energy)
+        logger.debug(list(engrad))
+        error, close1 = check_value(energy[0], gauss_energy)
+        logger.info(f'Gaussian Energy:                 Error: {error:+8.4e}   |   {bool2msg(close1)}')
+        error, close2 = check_vector(engrad, gauss_grad)
+        logger.info(f'Gaussian Gradient:               Error: {error:+8.4e}   |   {bool2msg(close2)}')
+        logger.info(f'GAUSSIAN INTERFACE:                                   |   {bool2msg((close1 and close2))}')
+    except nex.MissingEnvironmentVariable:
+        logger.warning(f'GAUSSIAN INTERFACE:                                   |   NOT TESTED')
+        logger.warning('GAUSS_EXE environment variable was not set.')
     except Exception as e:
         logger.error(f'GAUSSIAN INTERFACE:                                   |   ERROR')
         logger.error("GAUSSIAN test failed due to unexpected exception", exc_info=e)
@@ -414,7 +430,8 @@ def test_gaussian(atomic_labels, pvec, temp_workdir):
 def test_tblite(atomic_labels, pvec, temp_workdir):
     logger = logging.getLogger(__name__)
     logger.info('-----  xTB            -----')
-    logger.info('Reference energies and gradients calculated on GFN2-xTB with tblite 0.4.0')
+    logger.info('Reference energies and gradients calculated on GFN2-xTB with tblite 0.4.0.\n' +
+                'If you are using a different version the values might be slightly different.')
     try:
         nodes = os.getenv('SLURM_NTASKS_PER_NODE', os.getenv('NUM_THREADS', 1))
 

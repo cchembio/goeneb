@@ -1,5 +1,4 @@
 import numpy as np
-import neb_exceptions as nex
 from helper import pvec_to_crdmat, crdmat_to_pvec
 
 
@@ -95,7 +94,7 @@ def align_path(pvecs, rot_align_mode):
             aligned_struct, C = align_vectors(centered_pvecs[i], new_structures[0])
             new_structures.append(aligned_struct)
     else:
-        raise nex.NEBError('Error in struct_aligner interpolator_module: "' +
+        raise ValueError('Error in struct_aligner interpolator_module: "' +
                            str(rot_align_mode) + 
                            '" is not a valid rotation alignment mode.')
     return new_structures

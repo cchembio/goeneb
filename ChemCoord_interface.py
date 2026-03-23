@@ -15,13 +15,13 @@ try:
 except ImportError:
     cc = None
     UndefinedCoordinateSystem = None
-    logger.warning("Chemcoord could not be imported. This is important for the internal interpolation.")
+    print("Chemcoord could not be imported. This is important for the internal interpolation.")
 
 try:
     import pandas as pd
 except ImportError:
     pd = None
-    logger.warning("Pandas could not be imported. This is important for the internal interpolation.")
+    print("Pandas could not be imported. This is important for the internal interpolation.")
 
 
 def total_atom_movement(path_pvecs):

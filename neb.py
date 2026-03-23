@@ -384,8 +384,8 @@ def process_input_path(inpfile_path:Path):
         settings = process_workdir(inpfile_path)
 
     else:
-        raise nex.NEBError('Error: argument given in program call is no '
-                           'valid file or directory: ' + str(inpfile_path))
+        raise FileNotFoundError('Error: argument given in program call is no '
+                                'valid file or directory: ' + str(inpfile_path))
 
     return settings
 
@@ -400,7 +400,7 @@ def process_workdir(workdir:Path):
     # try to find ini file
     inifiles = list(workdir.glob("*.ini"))
     if len(inifiles) != 1:
-        raise nex.NEBError('Error: ' + str(workdir) + ' is not a valid' +
+        raise OSError('Error: ' + str(workdir) + ' is not a valid' +
                            ' workdir. It must contain exactly one ini file.')
     inipath = workdir / inifiles[0]
 
@@ -441,7 +441,7 @@ def process_workdir(workdir:Path):
 
             # we should be left with exactly two xyz files in case of NEB
             if len(xyz_files) != 2:
-                raise nex.NEBError('Error: ' + str(workdir) + ' is not a valid' +
+                raise OSError('Error: ' + str(workdir) + ' is not a valid' +
                                 ' workdir. There must be two xyz files for' +
                                 ' the two end structures.')
 
@@ -485,7 +485,7 @@ def find_workdir(inpfile_path:Path):
     try:
         io.safe_create_dir(resultdir)
 
-    except nex.NEBError:
+    except OSError:
         logger.error('Error when trying to access job directory. ' +
                      'See message below. Make sure you '
                      'have writing access to the job directory.')
@@ -520,7 +520,7 @@ def find_tempdir(settings):
     else:
         tempdir = os.getenv('NEB_TMPDIR')
         if tempdir is None:
-            raise ValueError('Error: NEB_TMPDIR environment variable not set.' +\
+            raise nex.MissingEnvironmentVariable('Error: NEB_TMPDIR environment variable not set.' +\
                              'Set this variable before starting, or ' +\
                              'specify a directory under the "tempdir" ' +\
                              'keyword in the input file.')
@@ -531,7 +531,7 @@ def find_tempdir(settings):
 
     # check if this directory can be accessed properly
     if not io.check_directory(tempdir):
-        raise nex.NEBError('Error when trying to access temporary ' +
+        raise OSError('Error when trying to access temporary ' +
                            'files directory. See message above. ' +
                            'Make sure you set the tempdir setting ' +
                            'in the input file, or the NEB_TMPDIR environment ' +

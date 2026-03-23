@@ -12,10 +12,8 @@ import struct_aligner_module as sam
 import failed_img_recalculator as fir
 import convsig_module as csm
 import file_sys_io as io
-from neb_exceptions import NEBError
 from neb_path import NEBPath
 import hessian_module as hm
-import neb_exceptions as nex
 import logging_module as lgm
 from basic_neb import BasicNEB
 from helper import parse_index_list, project, normalize
@@ -68,7 +66,7 @@ class NEB_Optimizer(BasicNEB):
             # Also set up hessians
             self.hessians = [hm.hessian(mode=self.initial_hessian, start = self.BFGS_start, labels=self.labels) for _ in range(self.images)]
         else:
-            raise nex.NEBError('Error in with step prediction method. %s is not a valid step predictor mode.',
+            raise ValueError('Error in with step prediction method. %s is not a valid step predictor mode.',
                                str(settings.step_pred_method))
 
         # Logging
@@ -110,7 +108,7 @@ class NEB_Optimizer(BasicNEB):
             springgrads = sfm.full_springgrads(full_path_pvecs, img_pair_ks)
 
         else:
-            raise NEBError('Error with springforce definition. %s is not a valid springforce mode.',
+            raise ValueError('Error with springforce definition. %s is not a valid springforce mode.',
                            str(self.spring_gradient))
 
         # if ci is active, the springforces acting on the ci are zero
@@ -198,7 +196,7 @@ class NEB_Optimizer(BasicNEB):
         elif self.tangents == 'simple':
             raw_tans = tgm.simple_tans(full_path_pvecs)
         else:
-            raise NEBError('Error with tangent definition. %s is not a valid tangent mode.',
+            raise ValueError('Error with tangent definition. %s is not a valid tangent mode.',
                            str(self.tangents))
         return raw_tans
 
@@ -590,7 +588,7 @@ class SCT_Optimizer(BasicNEB):
             springgrads = sfm.full_springgrads(full_path_pvecs, img_pair_ks)
 
         else:
-            raise NEBError('Error with springforce definition. %s is not a valid springforce mode.',
+            raise ValueError('Error with springforce definition. %s is not a valid springforce mode.',
                            str(self.spring_gradient))
 
         # if ci is active, the springforces acting on the ci are zero
@@ -617,7 +615,7 @@ class SCT_Optimizer(BasicNEB):
         elif self.tangents == 'simple':
             raw_tans = tgm.simple_tans(full_path_pvecs)
         else:
-            raise NEBError('Error with tangent definition. %s is not a valid tangent mode.',
+            raise ValueError('Error with tangent definition. %s is not a valid tangent mode.',
                            str(self.tangents))
         return raw_tans
 

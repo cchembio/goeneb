@@ -5,6 +5,7 @@ import file_sys_io as io
 import logging
 
 from helper import bettersplit
+from neb_exceptions import ParsingError
 
 logger = logging.getLogger(__name__)
 
@@ -86,10 +87,17 @@ def calculate_gaussian_engrad(struct_data,
     logger.info('Now calculating: ' + inpfile_name)
     write_gaussian_inpfile(input_filename, struct_data, method_keywords,
                            charge, spin, nprocs, mem, title)
-    subprocess.run([str(gaussian) + ' ' + str(input_filename)], shell=True)
+
+    try:
+        subprocess.run([str(gaussian) + ' ' + str(input_filename)], shell=True)
+    except Exception as e:
+        logger.error(f"Unexpected error running Gaussian for {inpfile_name}: {e}")
+        return None
+
+    # read results
     try:
         Energy, Gradient = read_gaussian_forcefile(output_filename)
-    except:
+    except ParsingError:
         return None  # engrad calculation didnt converge
     else:
         return [Energy, Gradient]
@@ -145,23 +153,24 @@ def read_gaussian_forcefile(filename):
                     Energy = val
                     break
     if Energy is None:
-        raise ValueError('No SPE found in gaussian result file: '
-                         + str(filename))
+        raise ParsingError(f'No SPE found in gaussian result file: {str(filename)}')
+
     # read in force vector
-    start_ind = lines.index(' Center     Atomic                   ' +
-                            'Forces (Hartrees/Bohr)\n') + 3
-    stop_ind = lines.index(' -----------------------------------------' +
-                           '--------------------------\n', start_ind)
+    try:
+        start_ind = lines.index(' Center     Atomic                   Forces (Hartrees/Bohr)\n') + 3
+        stop_ind = lines.index(' -------------------------------------------------------------------\n', start_ind)
+    except ValueError as e:
+        raise ParsingError(f'Invalid gaussian result file: {str(filename)}') from e
+
     coords = []
     for i in range(start_ind, stop_ind):
         tokens = bettersplit(lines[i], ' \t\n')
         if len(tokens) != 5:
-            raise ValueError('Invalid gaussian result file: ' + str(filename))
+            raise ParsingError(f'Invalid gaussian result file: {str(filename)}')
         try:
             coords += [float(tokens[2]), float(tokens[3]), float(tokens[4])]
-        except:
-            raise ValueError('Error while trying to read gaussian result'
-                             + ' file: ' + str(filename))
+        except ValueError as e:
+            raise ParsingError(f'Error while trying to read gaussian result file: {str(filename)}') from e
     force_vec = np.array(coords)
     return Energy, force_vec / -bohr  # Eh/bohr forces to Eh/ang gradients
 

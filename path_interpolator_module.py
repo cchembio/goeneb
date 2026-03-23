@@ -87,7 +87,7 @@ def do_interpolation(start_pvec,
         interp_path = geo.interpolate_geodesic(start_pvec, end_pvec, labels, interpolations)
         logger.setLevel(level)              # set the level back after geodesic use
     else:
-        raise NEBError('Error in path_interpolator_module: "' + str(mode) +
+        raise ValueError('Error in path_interpolator_module: "' + str(mode) +
                        '" is not a valid interpolation mode.')
     return interp_path
 

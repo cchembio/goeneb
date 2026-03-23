@@ -5,6 +5,7 @@ import file_sys_io as io
 import logging
 
 from helper import bettersplit
+from neb_exceptions import ParsingError
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +78,7 @@ def calculate_molpro_engrad(struct_data,
     io.safe_create_dir(workingdir)
     input_filename = workingdir / (inpfile_name + '.com')
     output_filename = workingdir / (inpfile_name + '.out')
+
     # make sure no output file is left over. All output files for an
     # image will have the same name, and if one stays around, it might
     # be mistaken for the result of a future calculation that actually failed.
@@ -87,23 +89,27 @@ def calculate_molpro_engrad(struct_data,
     if errordir is not None:
         esdir = errordir / (inpfile_name + '.com')
         write_molpro_inpfile(esdir, struct_data, method_keywords, charge, spin)
-    # molpro needs to be called from within the same directory that
-    # the output file is in, so we must go to that directory first
+
+    # Molpro needs to be called from within the workingdir
     olddir = os.getcwd()
     os.chdir(workingdir)
-    cmd = [str(molpro), '--no-xml-output', '--nobackup',
-                     '-n', str(nprocs), '-s', input_filename.name,
-                     '-I', '.', '-W', '.', '-o', output_filename.name]
-    subprocess.run(cmd)
-    # now that molpro is finished, we change back to whatever
-    # directory we were in before
+    try:
+        cmd = [str(molpro), '--no-xml-output', '--nobackup',
+                        '-n', str(nprocs), '-s', input_filename.name,
+                        '-I', '.', '-W', '.', '-o', output_filename.name]
+        subprocess.run(cmd)
+    except Exception as e:
+        logger.error(f"Unexpected error running Molpro for {inpfile_name}: {e}")
+        return None
+
+    # Change back to previos directory
     os.chdir(olddir)
     try:
         Energy, Gradient = read_molpro_forcefile(output_filename)
-    except:
+    except ParsingError:
         return None  # engrad calculation didnt converge
-    else:
-        return [Energy, Gradient]
+
+    return [Energy, Gradient]
 
 
 # Some helper functions
@@ -150,8 +156,11 @@ def read_molpro_forcefile(resultfile):
     Read the Molpro force file and return the energy and the gradient.
     """
     lines = io.qread(resultfile)
+
+    # Check for valid file
     if lines[-1] != ' Molpro calculation terminated\n':
-        raise ValueError('Invalid molpro engrad file.')
+        raise ParsingError(f'Invalid molpro engrad file {resultfile}.')
+
     # find energy
     Energy = None
     for line in reversed(lines):
@@ -160,20 +169,23 @@ def read_molpro_forcefile(resultfile):
             Energy = float(tokens[-1])
             break
     if Energy is None:
-        raise ValueError('Invalid molpro engrad file.')
+        raise ParsingError(f'Invalid molpro engrad file {resultfile}.')
 
     # find forces
-    startind = lines.index(' Atom          dE/dx               dE/dy'
-                           + '               dE/dz\n') + 2
-    stopind = lines.index('\n', startind)
+    try:
+        startind = lines.index(' Atom          dE/dx               dE/dy               dE/dz\n') + 2
+        stopind = lines.index('\n', startind)
+    except ValueError as e:
+        raise ParsingError(f'Invalid molpro engrad file {resultfile}.') from e
     force_vals = []
     for i in range(startind, stopind):
         tokens = bettersplit(lines[i], ' \n\t')
         if len(tokens) != 4:
-            raise ValueError('Invalid molpro engrad file.')
-        for token in tokens[1:]:
+            raise ParsingError(f'Invalid molpro engrad file {resultfile}.')
+        for token in tokens[1:4]:
             force_vals.append(float(token))
     force_vec = np.array(force_vals)
+
     return Energy, force_vec / bohr  # convert Eh/bohr to Eh/ang
 
 

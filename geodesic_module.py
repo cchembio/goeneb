@@ -9,7 +9,7 @@ try:
 except ImportError:
     KDTree = None
     least_squares = None
-    logger.warning("Scipy could not be imported. This is important for the geodesic interpolation.")
+    print("Scipy could not be imported. This is important for the geodesic interpolation.")
 
 def interpolate_geodesic(start_pvec, 
                          end_pvec, 

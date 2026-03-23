@@ -29,9 +29,9 @@ def gather_engrfunc(atomic_labels, settings, temp_workdir):
 
     if interface is None:
         # user forgot to set this
-        raise nex.NEBError('Error: no interface for engrad calculation ' +\
-                           'selected. Make sure to select an interface ' +\
-                           'option in the input file.')
+        raise nex.MissingKeyword('Error: no interface for engrad calculation '
+                                 'selected. Make sure to select an interface '
+                                  'option in the input file.')
 
     elif interface == 'orca':
         engrfunc, engrfunc_kwargs = setup_orca(atomic_labels,
@@ -57,8 +57,7 @@ def gather_engrfunc(atomic_labels, settings, temp_workdir):
         engrfunc, engrfunc_kwargs = setup_dummy(number_of_images)
 
     else:
-        raise nex.NEBError('Error: invalid interface selected in input' +\
-                           ' file: ' + str(interface))
+        raise ValueError(f'Error: invalid interface selected in input file: {str(interface)}')
 
     return engrfunc, engrfunc_kwargs
 
@@ -78,10 +77,10 @@ def setup_orca(atomic_labels, settings, temp_workdir):
     orca_keywords = settings.orca_keywords
 
     if orca_keywords is None:
-        raise nex.NEBError('Error: ORCA interface selected, but no ' +\
-                           'ORCA calculation keywords specified. Make ' +\
-                           'sure to specify them in the .ini file under ' +\
-                           'the "orca_keywords" keyword.')
+        raise nex.MissingKeyword('Error: ORCA interface selected, but no '
+                                 'ORCA calculation keywords specified. Make '
+                                 'sure to specify them in the .ini file under '
+                                 'the "orca_keywords" keyword.')
 
     if settings.orca_keywords2 is None:
         ml2 = None
@@ -111,11 +110,13 @@ def find_orcapath(settings):
     else:
         orcapath = os.getenv('ORCA_EXE')
 
-        if orcapath is None:
-            raise nex.NEBError('ORCA_EXE environment variable not set. ' +\
-                               'Set this variable before starting this ' +\
-                               'program, or specify the "orca_path" ' +\
-                               'keyword in the ini file.')
+        if orcapath is None or orcapath == '':
+            raise nex.MissingEnvironmentVariable(
+            "ORCA_EXE environment variable is not set.\n"
+            "Please set the ORCA_EXE environment variable before running this program,\n"
+            "or specify the 'orca_path' option in the configuration file."
+            )
+
 
     return orcapath
 
@@ -136,10 +137,10 @@ def setup_gaussian(atomic_labels, settings, temp_workdir):
     gauss_keywords = settings.gaussian_keywords
 
     if gauss_keywords is None:
-        raise nex.NEBError('Error: gaussian interface selected, but no ' +\
-                           'gaussian calculation keywords specified. Make' +\
-                           ' sure to specify them in the .ini file under ' +\
-                           'the "gaussian_keywords" keyword.')
+        raise nex.MissingKeyword('Error: Gaussian interface selected, but no '
+                                 'Gaussian calculation keywords specified. Make '
+                                 'sure to specify them in the .ini file under '
+                                 'the "gaussian_keywords" keyword.')
 
     engrfunc_kwargs = {'labels' : atomic_labels,
                        'workingdir' : temp_workdir,
@@ -164,12 +165,15 @@ def find_gausspath(settings):
 
     else:
         gaussianpath = os.getenv('GAUSS_EXE')
+        print('path:')
+        print(gaussianpath)
 
-        if gaussianpath is None:
-            raise nex.NEBError('GAUSS_EXE environment variable not set. ' +\
-                               'Set this variable before starting this ' +\
-                               'program, or specify the "gaussian_path" ' +\
-                               'keyword in the ini file.')
+        if gaussianpath is None or gaussianpath == '':
+            raise nex.MissingEnvironmentVariable(
+            "GAUSS_EXE environment variable is not set.\n"
+            "Please set the GAUSS_EXE environment variable before running this program,\n"
+            "or specify the 'gaussian_path' option in the configuration file."
+            )
 
     return gaussianpath
 
@@ -194,10 +198,10 @@ def setup_molpro(atomic_labels, settings, temp_workdir):
     molpro_keywords = settings.molpro_keywords
 
     if molpro_keywords is None:
-        raise nex.NEBError('Error: molpro interface selected, but no ' +\
-                           'Molpro calculation keywords specified. Make ' +\
-                           'sure to specify them in the .ini file under ' +\
-                           'the "molpro_keywords" keyword.')
+        raise nex.MissingKeyword('Error: Molpro interface selected, but no '
+                                 'Molpro calculation keywords specified. Make '
+                                 'sure to specify them in the .ini file under '
+                                 'the "molpro_keywords" keyword.')
 
     engrfunc_kwargs = {'labels' : atomic_labels,
                        'workingdir' : temp_workdir,
@@ -222,11 +226,12 @@ def find_molpro_path(settings):
 
     else:
         molpath = os.getenv('MOL_EXE')
-        if molpath is None:
-            raise nex.NEBError('MOL_EXE environment variable not set. Set ' +\
-                               'this variable before starting this program' +\
-                               ', or specify the "molpro_path" keyword in ' +\
-                               'the ini file.')
+        if molpath is None or molpath == '':
+            raise nex.MissingEnvironmentVariable(
+            "MOL_EXE environment variable is not set.\n"
+            "Please set the MOL_EXE environment variable before running this program,\n"
+            "or specify the 'molpro_path' option in the configuration file."
+            )
 
         molpath = Path(molpath)
     return molpath
@@ -249,10 +254,10 @@ def setup_tblite(atomic_labels, settings):
     tblite_keywords = settings.tblite_keywords
 
     if tblite_keywords is None:
-        raise nex.NEBError('Error: tblite interface selected, but no ' +\
-                           'tblite calculation keywords specified. Make ' +\
-                           'sure to specify them in the .ini file under ' +\
-                           'the "tblite_keywords" keyword.')
+        raise nex.MissingKeyword('Error: tblite interface selected, but no '
+                                 'tblite calculation keywords specified. Make '
+                                 'sure to specify them in the .ini file under '
+                                 'the "tblite_keywords" keyword.')
 
     engrfunc_kwargs = {'labels' : atomic_labels,
                        'method_keywords' : tblite_keywords,

@@ -122,7 +122,7 @@ class Settings:
                 [newkey, newval] = clean_line.split('=', 1)
                 user_settings[newkey] = self.convert_entry(newval, newkey)
             except (ValueError, IndexError):
-                raise nex.NEBError("Error in neb_configparse: couldn't parse" +
+                raise nex.ParsingError("Error in neb_configparse: couldn't parse" +
                                    "input file line: " + str(line))
         return user_settings
     

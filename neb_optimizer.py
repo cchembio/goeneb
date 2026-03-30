@@ -58,7 +58,7 @@ class NEB_Optimizer(BasicNEB):
 
         elif self.step_pred_method in ('sct', 'l-rfo', 'l-nr'):
             if self.step_pred_method == 'sct':
-                self.predictor = spm.self_consistent_tangents(self.images, self.BFGS_start, self.NR_start, self.stepsize_fac, self.AMGD_max_gamma)
+                self.predictor = spm.self_consistent_tangents(self.images, self.BFGS_start, self.NR_start, self.stepsize_fac, self.AMGD_max_gamma, self.soft_reset, self.soft_reset_memory)
             elif self.step_pred_method == 'l-rfo':
                 self.predictor = spm.LocalRF(self.images, self.BFGS_start, self.NR_start, self.stepsize_fac, self.AMGD_max_gamma)
             elif self.step_pred_method == 'l-nr':

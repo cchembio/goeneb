@@ -305,7 +305,7 @@ class LocalNR(NewtonRaphson):
 # Self consistent tangent method
 
 class self_consistent_tangents:
-    def __init__(self, images=11, BFGS_start=5, NR_start=10, stepsize_fac=0.2, max_gamma=0.9):
+    def __init__(self, images=11, BFGS_start=5, NR_start=10, stepsize_fac=0.2, max_gamma=0.9, soft_reset=True, soft_reset_memory=5):
         self.NR_start = NR_start
         self.BFGS_start = BFGS_start
         self.stepsize_fac = stepsize_fac
@@ -313,6 +313,9 @@ class self_consistent_tangents:
         self.iteration = 0
         self.do_AMGD = True
         self.images = images
+        self.failed_sct_count = 0
+        self.soft_reset = soft_reset
+        self.soft_reset_memory = soft_reset_memory
 
         # Setup AMGD
         self.AMGD_objects = [AMGD(stepsize_fac, max_gamma) for _ in range(images)]
@@ -342,6 +345,7 @@ class self_consistent_tangents:
             SCT_steps, ret_state = sct.do_harmonic_opt(path, settings, hessians)
             if ret_state == 'FAILED':
                 logger.warning('Doing AMGD, since the SCT did not converge')
+                self.failed_sct_count += 1
                 return AMGD_steps
             elif SCT_steps is not None:
                 logger.info('Doing SCT-NEB')
@@ -355,6 +359,12 @@ class self_consistent_tangents:
         Update function for the local hessians of the images.
         """
         self.iteration += 1
+        # soft reset if SCT did not converge in the last 5 iterations
+        if self.failed_sct_count >= 5 and self.soft_reset:
+            for hessian in hessians:
+                hessian.soft_reset(self.soft_reset_memory)
+            self.failed_sct_count = 0
+
         for pvec, grad, energy, hessian in zip(cart_pvecs, cart_grads, energies, hessians):
             # Update the memorized previous pvecs and gradvecs
             hessian.cart_pvecs.append(pvec)

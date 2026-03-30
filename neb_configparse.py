@@ -41,6 +41,8 @@ class Settings:
         self.BFGS_start = 5
         self.initial_hessian = 'diagonal'
         self.max_step = 0.05
+        self.soft_reset = True
+        self.soft_reset_memory = 5
 
         # rotations and translations
         self.rot_align_mode = 'pairwise'

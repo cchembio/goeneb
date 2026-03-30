@@ -1,5 +1,10 @@
 import numpy as np
 import logging
+from ase import Atoms
+from ase.io import read
+from tblite.ase import TBLite
+from ase.vibrations import Vibrations
+from scipy.linalg import eigh
 
 from internal_module import calcBmat, calcKmat, convert_gradient
 
@@ -153,6 +158,13 @@ class hessian:
         self.start = 1
         logger.warning('Resetting Hessian')
 
+    def soft_reset(self, memory=5):
+        self.inv_cart_hessian = None
+        self.cart_grads = self.cart_grads[-memory:]
+        self.cart_pvecs = self.cart_pvecs[-memory:]
+        self.start = 1
+        logger.warning('Soft-Resetting Hessian')
+
 # ------------------------------------------------------------------------------------------------------------------
 
 class Initial_Hess:
@@ -294,4 +306,3 @@ class Initial_Hess:
                                             tmpks.append(k)
 
         return (tmpstretch, tmpbend, tmptwist, tmpks)
-
